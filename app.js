@@ -296,11 +296,11 @@
       const benefits = benefitList(variant);
       const active = benefits.filter(b => benefitLimit(b) > 0).length;
       const used = benefits.filter(b => benefitLimit(b) > 0 && benefitUsed(card.id, b) >= benefitLimit(b)).length;
-      return '<article class="card-visual"><div class="card-topline"><span class="card-network">' + esc(variant?.network || card.network || "RuPay") + '</span><span class="card-owner">' + esc(holder?.name || "Self") + '</span></div>' +
-        '<div class="card-chip">▦</div><h2>' + esc(card.bank || "Bank not set") + '</h2><p>' + esc(variant?.name || "Legacy / unassigned variant") + '</p>' + (card.name && card.name !== variant?.name ? '<p class="card-nickname">' + esc(card.name) + '</p>' : '') +
+      return '<article class="card-visual card-visual-compact"><div class="card-compact-main"><div class="card-topline"><span class="card-network">' + esc(variant?.network || card.network || "RuPay") + '</span><span class="card-owner">' + esc(holder?.name || "Self") + '</span></div>' +
+        '<h2>' + esc(card.bank || "Bank not set") + '</h2><p>' + esc(variant?.name || "Legacy / unassigned variant") + '</p>' + (card.name && card.name !== variant?.name ? '<p class="card-nickname">' + esc(card.name) + '</p>' : '') +
         '<div class="card-number">' + (card.last5 ? "•••• •••• ••• " + esc(card.last5.slice(0,3)) + " " + esc(card.last5.slice(3)) : (card.last4 ? "•••• •••• •••• " + esc(card.last4) : "Last five digits not added")) + '</div>' +
-        '<div class="card-foot"><span>' + benefits.length + ' benefits</span><span>' + used + '/' + active + ' limits exhausted</span></div>' +
-        '<div class="card-actions"><button class="button secondary small" data-action="edit-card" data-id="' + esc(card.id) + '">Edit card</button><button class="button quiet small" data-action="card-benefits" data-id="' + esc(card.id) + '">Benefits ↗</button></div></article>';
+        '<div class="card-foot"><span>' + benefits.length + ' benefits</span><span>' + used + '/' + active + ' limits exhausted</span></div></div>' +
+        '<div class="card-actions card-actions-side"><button class="button secondary small" data-action="edit-card" data-id="' + esc(card.id) + '">Edit card</button><button class="button quiet small" data-action="card-benefits" data-id="' + esc(card.id) + '">Benefits ↗</button></div></article>';
     }).join("") + '</div>';
   }
   let expandedBenefitKey = "";
