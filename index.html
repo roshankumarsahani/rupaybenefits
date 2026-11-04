@@ -5,36 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#101a32">
   <title>RuPay Benefits — Card & Voucher Manager</title>
-  <meta name="description" content="A private workspace to manage credit-card benefits and voucher inventory.">
-  <link rel="stylesheet" href="styles.css">
+  <meta name="description" content="A private workspace to manage card variants, family cards, benefits and voucher inventory.">
+  <link rel="stylesheet" href="styles.css?v=4">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script defer src="firebase-config.js?v=3"></script>
-  <script defer src="app.js?v=3"></script>
+  <script defer src="app.js?v=4"></script>
 </head>
 <body>
   <section id="authGate" class="auth-gate">
-    <div class="auth-card"><div class="brand-mark">₹</div><p class="eyebrow">PRIVATE CLOUD WORKSPACE</p><h1>Welcome to RuPay Benefits</h1><p class="subheading">Sign in to securely sync your cards and vouchers across devices.</p>
-      <form id="authForm"><label class="auth-label">Email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label><label class="auth-label">Password<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></label><button class="button primary" id="authSubmit" type="submit">Sign in</button></form>
-      <button class="auth-switch" id="authToggle" type="button">New here? Create an account</button><p id="authMessage" class="auth-message">Connect your Firebase project to get started.</p>
+    <div class="auth-card">
+      <div class="brand-mark">₹</div><p class="eyebrow">PRIVATE CLOUD WORKSPACE</p>
+      <h1>Welcome to RuPay Benefits</h1>
+      <p class="subheading">Sign in to securely sync your cards, benefits and vouchers across devices.</p>
+      <form id="authForm">
+        <label class="auth-label">Email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+        <label class="auth-label">Password<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></label>
+        <button class="button primary" id="authSubmit" type="submit">Sign in</button>
+      </form>
+      <button class="auth-switch" id="authToggle" type="button">New here? Create an account</button>
+      <p id="authMessage" class="auth-message">Connect your Firebase project to get started.</p>
     </div>
   </section>
+
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="#" aria-label="RuPay Benefits home">
-        <span class="brand-mark">₹</span>
-        <span><strong>RuPay</strong><small>BENEFITS</small></span>
+        <span class="brand-mark">₹</span><span><strong>RuPay</strong><small>BENEFITS</small></span>
       </a>
       <div class="workspace-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="Main navigation">
         <button class="nav-link active" data-view="dashboard"><span>◫</span> Overview</button>
+        <button class="nav-link" data-view="variants"><span>▦</span> Card variants</button>
         <button class="nav-link" data-view="cards"><span>▤</span> My cards</button>
+        <button class="nav-link" data-view="benefits"><span>✦</span> Benefit tracker</button>
         <button class="nav-link" data-view="vouchers"><span>▣</span> Voucher inventory</button>
-        <button class="nav-link" data-view="suppliers"><span>♧</span> Suppliers</button>
+        <button class="nav-link" data-view="family"><span>♧</span> Family / cardholders</button>
+        <button class="nav-link" data-view="suppliers"><span>◇</span> Suppliers</button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="storage-note"><span class="storage-dot"></span><div><strong>Firebase cloud</strong><small id="signedInEmail">Syncing workspace</small></div></div>
+        <div class="storage-note"><span class="storage-dot"></span><div><strong>Firebase cloud</strong><small id="signedInEmail">Connecting workspace</small></div></div>
         <button class="nav-link" id="signOutButton" type="button"><span>↪</span> Sign out</button>
         <button class="nav-link" data-view="settings"><span>⚙</span> Data & settings</button>
       </div>
@@ -48,34 +59,34 @@
       </header>
 
       <section class="view active" id="view-dashboard">
-        <div class="page-heading">
-          <div><p class="eyebrow">YOUR BENEFITS, IN ONE PLACE</p><h1>Overview</h1><p class="subheading">Keep every card, voucher and expiry date in sight.</p></div>
-          <button class="button primary" data-action="add-voucher">＋ Add vouchers</button>
-        </div>
+        <div class="page-heading"><div><p class="eyebrow">YOUR BENEFITS, IN ONE PLACE</p><h1>Overview</h1><p class="subheading">Track cards, benefit limits, family members and voucher expiries.</p></div><button class="button primary" data-action="add-card">＋ Add a card</button></div>
         <div class="stat-grid" id="dashboardStats"></div>
         <div class="dashboard-grid">
-          <article class="panel panel-wide">
-            <div class="panel-heading"><div><h2>Recent vouchers</h2><p>Your latest additions across all brands</p></div><button class="text-button" data-view="vouchers">View inventory ↗</button></div>
-            <div id="recentVouchers" class="table-wrap"></div>
-          </article>
-          <article class="panel">
-            <div class="panel-heading"><div><h2>Expiring soon</h2><p>Next 30 days</p></div><span class="panel-icon">◷</span></div>
-            <div id="expiringList" class="compact-list"></div>
-          </article>
-          <article class="panel">
-            <div class="panel-heading"><div><h2>Inventory mix</h2><p>Voucher origin</p></div><span class="panel-icon">◌</span></div>
-            <div id="sourceMix" class="source-mix"></div>
-          </article>
+          <article class="panel panel-wide"><div class="panel-heading"><div><h2>Benefit limits to watch</h2><p>Current-cycle usage across your cards</p></div><button class="text-button" data-view="benefits">Open tracker ↗</button></div><div id="dashboardBenefits"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Expiring soon</h2><p>Available vouchers · next 30 days</p></div><span class="panel-icon">◷</span></div><div id="expiringList"></div></article>
+          <article class="panel"><div class="panel-heading"><div><h2>Recent vouchers</h2><p>Latest inventory additions</p></div><button class="text-button" data-view="vouchers">View all ↗</button></div><div id="recentVouchers"></div></article>
         </div>
+      </section>
+
+      <section class="view" id="view-variants">
+        <div class="page-heading"><div><p class="eyebrow">REUSABLE CARD BLUEPRINTS</p><h1>Card variants</h1><p class="subheading">Define card benefits once, then assign the variant to each cardholder's card.</p></div><button class="button primary" data-action="add-variant">＋ Add variant</button></div>
+        <div class="notice">A variant stores the benefit catalogue and its cycle limits. Updating a variant updates the benefit rules used by every linked card.</div>
+        <div id="variantsContent"></div>
       </section>
 
       <section class="view" id="view-cards">
-        <div class="page-heading"><div><p class="eyebrow">YOUR PAYMENT TOOLKIT</p><h1>My cards</h1><p class="subheading">Track card variants and the benefits attached to them.</p></div><button class="button primary" data-action="add-card">＋ Add a card</button></div>
+        <div class="page-heading"><div><p class="eyebrow">YOUR PAYMENT TOOLKIT</p><h1>My cards</h1><p class="subheading">Add your own and family cards, assign variants and track each card separately.</p></div><button class="button primary" data-action="add-card">＋ Add a card</button></div>
         <div id="cardsContent"></div>
       </section>
 
+      <section class="view" id="view-benefits">
+        <div class="page-heading"><div><p class="eyebrow">USAGE & ELIGIBILITY</p><h1>Benefit tracker</h1><p class="subheading">See used and remaining visits or transactions for the current benefit cycle.</p></div></div>
+        <div class="filter-panel"><select id="benefitCardFilter" aria-label="Filter benefits by card"><option value="">All cards</option></select><select id="benefitCycleFilter" aria-label="Filter benefits by cycle"><option value="">All cycles</option><option>Monthly</option><option>Quarterly</option><option>Semi-annual</option><option>Annual</option><option>One-time</option><option>Manual</option></select></div>
+        <div id="benefitsContent"></div>
+      </section>
+
       <section class="view" id="view-vouchers">
-        <div class="page-heading"><div><p class="eyebrow">ONE INVENTORY, EVERY SOURCE</p><h1>Voucher inventory</h1><p class="subheading">Choose a brand to see all its codes, whether generated by you, from family cards or purchased.</p></div><button class="button primary" data-action="add-voucher">＋ Add vouchers</button></div>
+        <div class="page-heading"><div><p class="eyebrow">ONE INVENTORY, EVERY SOURCE</p><h1>Voucher inventory</h1><p class="subheading">Manage codes generated by you, received from family cards or purchased from suppliers.</p></div><button class="button primary" data-action="add-voucher">＋ Add vouchers</button></div>
         <div class="filter-panel">
           <label class="search-box"><span>⌕</span><input id="voucherSearch" type="search" placeholder="Search code, brand or supplier…"></label>
           <select id="brandFilter" aria-label="Filter by brand"><option value="">All brands</option></select>
@@ -87,21 +98,26 @@
         <div class="bulk-actions" id="bulkActions"><span id="selectedCount">0 selected</span><button class="button secondary small" data-action="copy-selected">Copy selected codes</button><button class="button quiet small" data-action="clear-selection">Clear</button></div>
       </section>
 
+      <section class="view" id="view-family">
+        <div class="page-heading"><div><p class="eyebrow">HOUSEHOLD CARDHOLDERS</p><h1>Family / cardholders</h1><p class="subheading">Keep family members and their assigned cards organized in one workspace.</p></div><button class="button primary" data-action="add-holder">＋ Add cardholder</button></div>
+        <div id="familyContent"></div>
+      </section>
+
       <section class="view" id="view-suppliers">
-        <div class="page-heading"><div><p class="eyebrow">PURCHASE HISTORY</p><h1>Suppliers</h1><p class="subheading">Supplier contact details are stored with each purchased voucher.</p></div><button class="button secondary" data-view="vouchers">Browse vouchers</button></div>
+        <div class="page-heading"><div><p class="eyebrow">PURCHASE HISTORY</p><h1>Suppliers</h1><p class="subheading">Supplier contacts and purchased voucher history are grouped here.</p></div><button class="button secondary" data-view="vouchers">Browse vouchers</button></div>
         <div id="suppliersContent"></div>
       </section>
 
       <section class="view" id="view-settings">
-        <div class="page-heading"><div><p class="eyebrow">YOUR DATA</p><h1>Data & settings</h1><p class="subheading">Back up your cloud workspace or restore records from a JSON file.</p></div></div>
+        <div class="page-heading"><div><p class="eyebrow">YOUR DATA</p><h1>Data & settings</h1><p class="subheading">Back up your full workspace or restore records from a JSON file.</p></div></div>
         <div class="settings-grid">
-          <article class="panel"><span class="setting-icon">⇧</span><h2>Export a backup</h2><p>Download cards and vouchers as a JSON backup file. Keep it somewhere safe.</p><button class="button primary" data-action="export">Download backup</button></article>
-          <article class="panel"><span class="setting-icon">⇩</span><h2>Restore a backup</h2><p>Import a previous backup. Imported records are added to this device's workspace.</p><label class="button secondary file-button">Choose backup file<input id="importFile" type="file" accept="application/json,.json"></label></article>
-          <article class="panel warning-panel"><span class="setting-icon">ⓘ</span><h2>Storage & security</h2><p>Your records are stored in your private Firebase workspace and sync across devices signed into this account. Do not store sensitive card numbers, CVVs, OTPs, passwords or banking credentials.</p><p>Export periodic JSON backups. Firebase free usage has limits; monitor usage in Google Cloud.</p></article>
+          <article class="panel"><span class="setting-icon">⇧</span><h2>Export a backup</h2><p>Download variants, cards, cardholders, benefit usage and vouchers as a JSON backup file.</p><button class="button primary" data-action="export">Download backup</button></article>
+          <article class="panel"><span class="setting-icon">⇩</span><h2>Restore a backup</h2><p>Import a RuPay Benefits JSON backup. Existing records are kept; duplicate IDs are skipped.</p><label class="button secondary file-button">Choose backup file<input id="importFile" type="file" accept="application/json,.json"></label></article>
+          <article class="panel warning-panel"><span class="setting-icon">ⓘ</span><h2>Storage & security</h2><p>Your records are stored in your private Firebase workspace and sync across devices signed into this account. Do not store full card numbers, CVVs, PINs, OTPs, passwords or banking credentials.</p><p>Firestore has usage and document-size limits. Export periodic JSON backups.</p><p id="syncStatus" class="muted">Cloud sync status will appear here.</p></article>
         </div>
       </section>
 
-      <footer class="footer"><span>RuPay Benefits <span class="muted">· Personal finance workspace</span></span><span>Amounts in INR (₹)</span></footer>
+      <footer class="footer"><span>RuPay Benefits <span class="muted">· Personal card & benefits workspace</span></span><span>Amounts in INR (₹)</span></footer>
     </main>
   </div>
   <div id="modal" class="modal" aria-hidden="true"></div>
