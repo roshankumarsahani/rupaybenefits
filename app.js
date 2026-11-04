@@ -4,6 +4,9 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   let state = loadState();
+  let cloudReady = false;
+  let creatingAccount = false;
+  let saveQueue = Promise.resolve();
   let selectedIds = new Set();
   let activeView = "dashboard";
   let toastTimer;
@@ -20,13 +23,13 @@
     }
   }
   function persist() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      return true;
-    } catch {
-      notify("Could not save. Browser storage may be full or disabled.");
-      return false;
-    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+    if (!cloudReady || !window.firebase?.auth || !firebase.auth().currentUser) return true;
+    const userId = firebase.auth().currentUser.uid;
+    const payload = { cards: state.cards, vouchers: state.vouchers, updatedAt: new Date().toISOString() };
+    saveQueue = saveQueue.then(() => firebase.firestore().doc("users/" + userId + "/workspace/main").set(payload))
+      .catch(error => { console.error("Cloud save failed", error); notify("Cloud save failed. Check connection and try again."); });
+    return true;
   }
   function uid() {
     return window.crypto && crypto.randomUUID ? crypto.randomUUID() : "rb-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
@@ -440,5 +443,80 @@
   });
   document.addEventListener("keydown", event => { if (event.key === "Escape") closeModal(); });
 
-  openView("dashboard");
+  function setAuthMessage(message, kind = "") {
+    const el = $("#authMessage");
+    if (el) { el.textContent = message; el.className = "auth-message " + kind; }
+  }
+  function showAuthGate(show) {
+    $("#authGate")?.classList.toggle("visible", show);
+  }
+  function firebaseConfigured() {
+    const c = window.RUPAY_FIREBASE_CONFIG || {};
+    return c.apiKey && !c.apiKey.startsWith("PASTE_") && c.projectId && c.projectId !== "YOUR_PROJECT_ID" && c.appId && !c.appId.startsWith("PASTE_");
+  }
+  async function startFirebase() {
+    if (!firebaseConfigured() || !window.firebase) {
+      showAuthGate(true);
+      setAuthMessage("Firebase setup is incomplete. Add your Web app values to firebase-config.js and enable Email/Password sign-in.", "error");
+      return;
+    }
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(window.RUPAY_FIREBASE_CONFIG);
+      const auth = firebase.auth();
+      $("#authForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        const email = $("#authEmail").value.trim();
+        const password = $("#authPassword").value;
+        $("#authSubmit").disabled = true;
+        try {
+          if (creatingAccount) await auth.createUserWithEmailAndPassword(email, password);
+          else await auth.signInWithEmailAndPassword(email, password);
+        } catch (error) { setAuthMessage(error.message || "Sign-in failed.", "error"); }
+        finally { $("#authSubmit").disabled = false; }
+      });
+      $("#authToggle").addEventListener("click", () => {
+        creatingAccount = !creatingAccount;
+        $("#authSubmit").textContent = creatingAccount ? "Create account" : "Sign in";
+        $("#authToggle").textContent = creatingAccount ? "Already have an account? Sign in" : "New here? Create an account";
+        $("#authPassword").autocomplete = creatingAccount ? "new-password" : "current-password";
+        setAuthMessage(creatingAccount ? "Use an email address and a strong password (at least 8 characters)." : "Sign in to open your private workspace.");
+      });
+      $("#signOutButton").addEventListener("click", () => auth.signOut());
+      auth.onAuthStateChanged(async user => {
+        if (!user) {
+          cloudReady = false;
+          showAuthGate(true);
+          $("#signedInEmail").textContent = "Signed out";
+          return;
+        }
+        showAuthGate(false);
+        setAuthMessage("Signed in.", "success");
+        $("#signedInEmail").textContent = user.email || "Account connected";
+        try {
+          const ref = firebase.firestore().doc("users/" + user.uid + "/workspace/main");
+          const snap = await ref.get();
+          if (snap.exists) {
+            const data = snap.data();
+            state = { cards: Array.isArray(data.cards) ? data.cards : [], vouchers: Array.isArray(data.vouchers) ? data.vouchers : [] };
+          } else {
+            // First login migrates this browser's existing local workspace to the new account.
+            await ref.set({ cards: state.cards, vouchers: state.vouchers, updatedAt: new Date().toISOString() });
+          }
+          cloudReady = true;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          selectedIds.clear();
+          render();
+          openView(activeView);
+        } catch (error) {
+          cloudReady = false;
+          showAuthGate(true);
+          setAuthMessage("Could not load your cloud workspace: " + (error.message || "Check Firestore setup and rules."), "error");
+        }
+      });
+    } catch (error) {
+      showAuthGate(true);
+      setAuthMessage(error.message || "Firebase could not initialize.", "error");
+    }
+  }
+  startFirebase();
 })();
