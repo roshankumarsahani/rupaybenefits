@@ -1,30 +1,53 @@
 # Firebase setup — RuPay Benefits
 
-This app uses Firebase Authentication (email/password) and one private Cloud Firestore workspace document per account. It does not need the Oracle VM, Docker, Node server, or PostgreSQL.
+This app uses Firebase Authentication (email/password) and Cloud Firestore. It runs as a static site and does not require the Oracle VM, Docker, Node server or PostgreSQL.
 
-## 1. Create a separate Firebase project
-1. Open https://console.firebase.google.com/ and create a project named `rupay-benefits`.
-2. Add a **Web app** to the project and copy its Firebase configuration.
-3. In Project settings → General → Your apps, copy the config values into `firebase-config.js`. Replace every placeholder. Do not add a service-account key or private key.
+## Existing project
 
-## 2. Enable services
-1. Authentication → Sign-in method → enable **Email/Password**.
-2. Firestore Database → Create database. Start in production mode and select a nearby region. The database location cannot be changed later.
-3. Firestore Rules → paste the contents of `firestore.rules` and publish.
+- Firebase project: `rupay-benefits`
+- Authentication provider: Email/Password
+- Firestore path: `users/{uid}/workspace/main`
 
-## 3. Deploy
-Commit the repository to GitHub Pages (or your existing static hosting). The Firebase SDK is loaded from Google's CDN. Keep `firebase-config.js` in the published site.
+## Publish the current Firestore rules
 
-## 4. First login and data
-Open the site, create an account with email and password, then sign in. Each account gets a private workspace at `users/{uid}/workspace/main`. The app saves cards and vouchers together in that document and syncs them across devices signed into the same account.
+This application update adds card variants, cardholders and benefit usage. The rules must allow the added arrays or Firestore will reject saves.
 
-The first successful sign-in on a browser migrates any existing local browser records into that account if its cloud workspace is empty. Export a JSON backup first as an extra precaution. Existing local records are not automatically deleted.
+1. Open [Firebase Console](https://console.firebase.google.com/).
+2. Select the **rupay-benefits** project.
+3. Open **Firestore Database → Rules**.
+4. Replace the rules with the exact contents of the repository file **firestore.rules**.
+5. Tap **Publish**.
 
-## Free-plan notes
-Firestore and Authentication have free allowances, not unlimited storage. Firestore charges/limits depend on database location and usage. Set a Google Cloud budget alert and monitor Firebase usage. Phone/SMS authentication is not used.
+The current rules permit only the signed-in user to read/write their own workspace and validate the workspace arrays. They do not enable public access.
+
+## Services already used
+
+1. Authentication → Sign-in method → Email/Password must remain enabled.
+2. Firestore Database must remain created in production mode.
+3. Keep the Firebase web app configuration in `firebase-config.js`. It is public browser configuration, not a service-account key.
+
+## Data migration and app usage
+
+- The workspace is still stored at `users/{uid}/workspace/main`.
+- Existing `cards` and `vouchers` are retained when the new app loads.
+- Existing cards with old benefit-note text are converted to individual legacy variants so the note text remains available. Their cycle is set to Manual and the usage cap is left unlimited because the old notes did not define reliable limits.
+- Create or edit a card variant first. Then add cards and assign each card to its variant and optional family cardholder.
+- Each card gets its own usage counter for the benefits defined by its assigned variant.
+- Export a JSON backup from Data & settings before bulk imports or major changes.
+
+## Workspace fields accepted by Firestore rules
+
+- `cards`: card records and variant assignments
+- `vouchers`: voucher records and supplier details
+- `variants`: reusable card benefit definitions
+- `holders`: family/cardholder records
+- `benefitUsages`: card-specific benefit usage entries
+- `updatedAt`: last cloud save timestamp
 
 ## Important
-- Never store full card numbers, CVVs, OTPs, banking passwords, or payment credentials.
-- The Firebase web config is intended to be present in browser code. Firestore Security Rules enforce account-level access.
-- Do not enable anonymous/public reads or writes.
-- Export periodic JSON backups from Data & settings.
+
+- Never store full card numbers, CVVs, PINs, OTPs, banking passwords or payment credentials. Only the last four digits should be saved.
+- A configured limit of 0 means no fixed cap is enforced by the app. Verify all actual benefit terms with the issuing bank.
+- Monthly/quarterly/semi-annual/annual counters use calendar periods. Issuer-specific benefit cycles may differ; use Manual or adjust the cycle where the bank's terms require it.
+- Firestore workspace is one document per account and therefore has a 1 MiB document limit. Keep backups and modest inventories. A larger deployment should move records to per-record subcollections.
+- Firebase free quotas are limited. Monitor usage and configure a budget alert.
