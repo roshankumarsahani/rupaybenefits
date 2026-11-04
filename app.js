@@ -262,7 +262,7 @@
     root.innerHTML = '<div class="variant-grid">' + state.variants.map(v => {
       const assigned = state.cards.filter(c => c.variantId === v.id).length;
       const benefits = benefitList(v);
-      return '<article class="panel variant-card"><div class="variant-head"><div><span class="card-network">' + esc(v.network || "CARD") + '</span><h2>' + esc(v.name) + '</h2><p>' + esc(v.bank || "Issuer not set") + '</p></div><span class="count-pill">' + assigned + ' assigned</span></div>' +
+      return '<article class="panel variant-card"><div class="variant-head"><div><span class="card-network">' + esc(v.network || "CARD") + '</span><h2>' + esc(v.name) + '</h2></div><span class="count-pill">' + assigned + ' assigned</span></div>' +
         '<div class="variant-meta"><span>Annual fee</span><strong>' + (Number(v.annualFee) ? money(v.annualFee) : "Not set") + '</strong></div>' +
         '<div class="variant-benefits"><div class="section-kicker">' + benefits.length + ' BENEFITS</div>' +
         (benefits.length ? benefits.map(b => '<div class="benefit-definition"><div><strong>' + esc(b.name) + '</strong><small>' + esc(b.category || "Other") + ' · ' + esc(b.cycle || "Manual") + '</small></div><b>' + (Number(b.limit) > 0 ? esc(b.limit) + ' ' + (Number(b.limit) === 1 ? 'voucher' : 'vouchers') : 'No cap') + '</b></div>').join("") : '<p class="muted">No benefits configured.</p>') + '</div>' +
