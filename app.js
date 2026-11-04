@@ -1,8 +1,10 @@
 (() => {
   "use strict";
+
   const STORAGE_KEY = "rupay-benefits-workspace-v1";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const emptyState = () => ({ cards: [], vouchers: [], variants: [], holders: [], benefitUsages: [] });
   let state = loadState();
   let cloudReady = false;
   let creatingAccount = false;
@@ -16,23 +18,15 @@
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
       return {
         cards: Array.isArray(saved.cards) ? saved.cards : [],
-        vouchers: Array.isArray(saved.vouchers) ? saved.vouchers : []
+        vouchers: Array.isArray(saved.vouchers) ? saved.vouchers : [],
+        variants: Array.isArray(saved.variants) ? saved.variants : [],
+        holders: Array.isArray(saved.holders) ? saved.holders : [],
+        benefitUsages: Array.isArray(saved.benefitUsages) ? saved.benefitUsages : []
       };
-    } catch {
-      return { cards: [], vouchers: [] };
-    }
-  }
-  function persist() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
-    if (!cloudReady || !window.firebase?.auth || !firebase.auth().currentUser) return true;
-    const userId = firebase.auth().currentUser.uid;
-    const payload = { cards: state.cards, vouchers: state.vouchers, updatedAt: new Date().toISOString() };
-    saveQueue = saveQueue.then(() => firebase.firestore().doc("users/" + userId + "/workspace/main").set(payload))
-      .catch(error => { console.error("Cloud save failed", error); notify("Cloud save failed. Check connection and try again."); });
-    return true;
+    } catch { return emptyState(); }
   }
   function uid() {
-    return window.crypto && crypto.randomUUID ? crypto.randomUUID() : "rb-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
+    return window.crypto && crypto.randomUUID ? crypto.randomUUID() : "rb-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
   }
   function esc(value) {
     return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
@@ -43,103 +37,247 @@
     return new Intl.NumberFormat("en-IN", { style:"currency", currency:"INR", maximumFractionDigits:0 }).format(n);
   }
   function dateLabel(value) {
-    if (!value) return "No expiry";
+    if (!value) return "Not set";
     const date = new Date(value + "T00:00:00");
     return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
   }
-  function daysUntil(value) {
-    if (!value) return Infinity;
-    const target = new Date(value + "T00:00:00");
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    return Math.ceil((target - today) / 86400000);
-  }
+  function todayISO() { return new Date().toISOString().slice(0, 10); }
   function notify(message) {
     const toast = $("#toast");
+    if (!toast) return;
     toast.textContent = message;
     toast.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 3000);
   }
-  function emptyState(title, message, actionLabel, action) {
+  function persist() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+    if (!cloudReady || !window.firebase?.auth || !firebase.auth().currentUser) return true;
+    const userId = firebase.auth().currentUser.uid;
+    const payload = {
+      cards: state.cards,
+      vouchers: state.vouchers,
+      variants: state.variants,
+      holders: state.holders,
+      benefitUsages: state.benefitUsages,
+      updatedAt: new Date().toISOString()
+    };
+    saveQueue = saveQueue.then(() => firebase.firestore().doc("users/" + userId + "/workspace/main").set(payload))
+      .then(() => { const el = $("#syncStatus"); if (el) el.textContent = "Cloud sync: saved " + new Date().toLocaleTimeString(); })
+      .catch(error => {
+        console.error("Cloud save failed", error);
+        const el = $("#syncStatus"); if (el) el.textContent = "Cloud sync error: " + (error.message || "check Firestore rules");
+        notify("Cloud save failed. Check Firestore rules and connection.");
+      });
+    return true;
+  }
+  function empty(title, message, actionLabel, action) {
     return '<div class="empty-state"><div class="empty-icon">◇</div><strong>' + esc(title) + '</strong><p>' + esc(message) + '</p>' +
       (actionLabel ? '<button class="button secondary small" data-action="' + esc(action) + '">' + esc(actionLabel) + '</button>' : "") + '</div>';
   }
-  function statusPill(status) {
-    return '<span class="status ' + esc(status || "available") + '">' + esc(status || "available") + '</span>';
+  function statusPill(status) { return '<span class="status ' + esc(status || "available") + '">' + esc(status || "available") + '</span>'; }
+  function sourceLabel(source) { return source === "family" ? "Family card" : source === "purchased" ? "Purchased" : "Generated by me"; }
+  function sourceTag(source) { return '<span class="source-tag">' + esc(sourceLabel(source)) + '</span>'; }
+  function getVariant(id) { return state.variants.find(v => v.id === id); }
+  function getHolder(id) { return state.holders.find(h => h.id === id); }
+  function getCard(id) { return state.cards.find(c => c.id === id); }
+  function getCardVariant(card) { return getVariant(card?.variantId); }
+  function cardLabel(card) {
+    const variant = getCardVariant(card);
+    const holder = getHolder(card.holderId);
+    return (card.name || variant?.name || "Card") + (holder ? " · " + holder.name : " · Self");
   }
-  function sourceLabel(source) {
-    return source === "family" ? "Family card" : source === "purchased" ? "Purchased" : "Generated by me";
+  function benefitList(variant) { return Array.isArray(variant?.benefits) ? variant.benefits : []; }
+
+  // Upgrade existing card records without discarding their legacy benefit notes.
+  function migrateLegacyCards() {
+    let changed = false;
+    state.cards.forEach(card => {
+      if (card.variantId) return;
+      const oldBenefits = Array.isArray(card.benefits) ? card.benefits : [];
+      const legacyVariant = {
+        id: "legacy-" + card.id,
+        name: card.name || "Legacy card variant",
+        bank: card.bank || "Not specified",
+        network: card.network || "Other",
+        annualFee: 0,
+        notes: "Automatically created from an earlier card record. Review and edit these benefit rules.",
+        benefits: oldBenefits.map((item, index) => ({
+          id: "legacy-benefit-" + card.id + "-" + index,
+          name: String(item),
+          category: "Other",
+          cycle: "Manual",
+          limit: 0,
+          unit: "uses",
+          notes: "Legacy note; no usage limit was inferred."
+        })),
+        createdAt: card.createdDate || new Date().toISOString()
+      };
+      if (oldBenefits.length) {
+        state.variants.push(legacyVariant);
+        card.variantId = legacyVariant.id;
+        changed = true;
+      }
+    });
+    return changed;
   }
-  function sourceTag(source) {
-    return '<span class="source-tag">' + esc(sourceLabel(source)) + '</span>';
+  function normalizeState(data) {
+    state = {
+      cards: Array.isArray(data.cards) ? data.cards : [],
+      vouchers: Array.isArray(data.vouchers) ? data.vouchers : [],
+      variants: Array.isArray(data.variants) ? data.variants : [],
+      holders: Array.isArray(data.holders) ? data.holders : [],
+      benefitUsages: Array.isArray(data.benefitUsages) ? data.benefitUsages : []
+    };
+    return migrateLegacyCards();
   }
+
+  const VIEW_LABELS = {
+    dashboard:"Overview", variants:"Card variants", cards:"My cards", benefits:"Benefit tracker",
+    vouchers:"Voucher inventory", family:"Family / cardholders", suppliers:"Suppliers", settings:"Data & settings"
+  };
   function openView(view) {
+    if (!VIEW_LABELS[view]) return;
     activeView = view;
     $$(".view").forEach(el => el.classList.toggle("active", el.id === "view-" + view));
     $$(".nav-link[data-view]").forEach(el => el.classList.toggle("active", el.dataset.view === view));
-    const labels = { dashboard:"Overview", cards:"My cards", vouchers:"Voucher inventory", suppliers:"Suppliers", settings:"Data & settings" };
-    $("#pageCrumb").textContent = labels[view] || "Overview";
+    $("#pageCrumb").textContent = VIEW_LABELS[view];
     render();
     window.scrollTo({ top:0, behavior:"smooth" });
   }
   function render() {
     renderDashboard();
+    renderVariants();
     renderCards();
+    renderBenefits();
     renderVouchers();
+    renderFamily();
     renderSuppliers();
   }
+
+  function periodKey(cycle, dateValue) {
+    const d = new Date((dateValue || todayISO()) + "T00:00:00");
+    if (Number.isNaN(d.getTime())) return "invalid";
+    const y = d.getFullYear(), m = d.getMonth() + 1;
+    if (cycle === "Monthly") return y + "-" + String(m).padStart(2, "0");
+    if (cycle === "Quarterly") return y + "-Q" + Math.ceil(m / 3);
+    if (cycle === "Semi-annual") return y + "-H" + (m <= 6 ? "1" : "2");
+    if (cycle === "Annual") return String(y);
+    if (cycle === "One-time") return "once";
+    return "all-time";
+  }
+  function cycleCaption(cycle) {
+    if (cycle === "Monthly") return "this month";
+    if (cycle === "Quarterly") return "this quarter";
+    if (cycle === "Semi-annual") return "this half-year";
+    if (cycle === "Annual") return "this year";
+    if (cycle === "One-time") return "lifetime";
+    return "all recorded";
+  }
+  function benefitUsed(cardId, benefit, dateValue) {
+    const key = periodKey(benefit.cycle || "Manual", dateValue || todayISO());
+    return state.benefitUsages.filter(u =>
+      u.cardId === cardId && u.benefitId === benefit.id &&
+      periodKey(benefit.cycle || "Manual", u.usedAt) === key
+    ).reduce((sum, u) => sum + (Number(u.quantity) || 1), 0);
+  }
+  function getBenefitRows() {
+    const rows = [];
+    state.cards.forEach(card => {
+      const variant = getCardVariant(card);
+      benefitList(variant).forEach(benefit => rows.push({ card, variant, benefit }));
+    });
+    return rows;
+  }
   function renderDashboard() {
-    const vouchers = state.vouchers;
-    const available = vouchers.filter(v => v.status === "available");
-    const expiring = available.filter(v => daysUntil(v.expiryDate) >= 0 && daysUntil(v.expiryDate) <= 30);
-    const purchased = vouchers.filter(v => v.source === "purchased").length;
+    const benefits = getBenefitRows();
+    const limited = benefits.filter(x => Number(x.benefit.limit) > 0);
+    const remaining = limited.reduce((n, x) => n + Math.max(0, Number(x.benefit.limit) - benefitUsed(x.card.id, x.benefit)), 0);
+    const expiring = state.vouchers.filter(v => v.status === "available" && v.expiryDate && daysUntil(v.expiryDate) >= 0 && daysUntil(v.expiryDate) <= 30)
+      .sort((a,b) => a.expiryDate.localeCompare(b.expiryDate)).slice(0, 5);
     const stats = [
-      ["Total cards", state.cards.length, "Cards tracked in this workspace", "▤"],
-      ["Available vouchers", available.length, "Ready to use or sell", "▣"],
-      ["Expiring in 30 days", expiring.length, "Available codes needing attention", "◷"],
-      ["Purchased vouchers", purchased, "With supplier contact details", "♧"]
+      ["Card variants", state.variants.length, "Reusable benefit blueprints", "▦"],
+      ["Cards tracked", state.cards.length, "Your cards and family cards", "▤"],
+      ["Benefits tracked", benefits.length, "Across assigned cards", "✦"],
+      ["Voucher codes", state.vouchers.filter(v => v.status === "available").length, "Currently available", "▣"]
     ];
-    $("#dashboardStats").innerHTML = stats.map((s,i) =>
+    $("#dashboardStats").innerHTML = stats.map(s =>
       '<article class="stat-card"><div class="stat-top">' + esc(s[0]) + '<span class="stat-icon">' + s[3] + '</span></div><div class="stat-value">' + s[1] + '</div><div class="stat-foot">' + esc(s[2]) + '</div></article>'
     ).join("");
-
-    const recent = [...vouchers].sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0,6);
-    $("#recentVouchers").innerHTML = recent.length ? '<table class="data-table"><thead><tr><th>Brand / code</th><th>Origin</th><th>Expiry</th><th>Status</th></tr></thead><tbody>' +
-      recent.map(v => '<tr><td><span class="brand-cell">' + esc(v.brand) + '</span><br><button class="code-link" data-action="voucher-detail" data-id="' + esc(v.id) + '">' + esc(v.code) + '</button></td><td>' + sourceTag(v.source) + '</td><td>' + dateLabel(v.expiryDate) + '</td><td>' + statusPill(v.status) + '</td></tr>').join("") +
-      '</tbody></table>' : emptyState("No vouchers yet", "Add your first voucher to start building your inventory.", "Add vouchers", "add-voucher");
-
-    const expiringRows = expiring.sort((a,b) => daysUntil(a.expiryDate)-daysUntil(b.expiryDate)).slice(0,5);
-    $("#expiringList").innerHTML = expiringRows.length ? expiringRows.map(v =>
+    $("#dashboardBenefits").innerHTML = benefits.length ? '<div class="dashboard-benefit-grid">' + benefits.slice(0, 8).map(x => {
+      const limit = Number(x.benefit.limit) || 0, used = benefitUsed(x.card.id, x.benefit);
+      const left = limit ? Math.max(0, limit - used) : null;
+      return '<div class="mini-benefit"><div><strong>' + esc(x.benefit.name) + '</strong><small>' + esc(cardLabel(x.card)) + '</small></div><b>' + (limit ? left + " left" : used + " used") + '</b></div>';
+    }).join("") + '</div>' + (benefits.length > 8 ? '<button class="text-button" data-view="benefits">See all ' + benefits.length + ' benefit records ↗</button>' : '') :
+      empty("No benefit tracker yet", "Create a card variant and add cards to see cycle limits here.", "Create a variant", "add-variant");
+    $("#expiringList").innerHTML = expiring.length ? expiring.map(v =>
       '<div class="compact-item"><div><strong>' + esc(v.brand) + '</strong><small>' + esc(v.code) + '</small></div><span class="expiry-date">' + (daysUntil(v.expiryDate) === 0 ? "Today" : daysUntil(v.expiryDate) + " days") + '</span></div>'
-    ).join("") : emptyState("All clear", "No available vouchers expiring in the next 30 days.");
-
-    const origins = [
-      ["Generated by me", vouchers.filter(v => v.source === "self").length],
-      ["Family cards", vouchers.filter(v => v.source === "family").length],
-      ["Purchased", purchased]
-    ];
-    const total = Math.max(1, vouchers.length);
-    $("#sourceMix").innerHTML = origins.map(o =>
-      '<div class="mix-row"><span>' + o[0] + '</span><div class="mix-track"><div class="mix-fill" style="width:' + Math.round(o[1]/total*100) + '%"></div></div><strong>' + o[1] + '</strong></div>'
-    ).join("");
+    ).join("") : empty("All clear", "No available vouchers expiring in the next 30 days.");
+    const recent = [...state.vouchers].sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 5);
+    $("#recentVouchers").innerHTML = recent.length ? recent.map(v =>
+      '<div class="compact-item"><div><strong>' + esc(v.brand) + '</strong><small>' + esc(v.code) + '</small></div>' + statusPill(v.status) + '</div>'
+    ).join("") : empty("No vouchers yet", "Add your first voucher code.", "Add vouchers", "add-voucher");
+  }
+  function renderVariants() {
+    const root = $("#variantsContent");
+    if (!state.variants.length) {
+      root.innerHTML = '<div class="panel">' + empty("No card variants", "Create a reusable card blueprint and add the lounge, travel, dining or other benefits with their usage cycles and limits.", "Add first variant", "add-variant") + '</div>';
+      return;
+    }
+    root.innerHTML = '<div class="variant-grid">' + state.variants.map(v => {
+      const assigned = state.cards.filter(c => c.variantId === v.id).length;
+      const benefits = benefitList(v);
+      return '<article class="panel variant-card"><div class="variant-head"><div><span class="card-network">' + esc(v.network || "CARD") + '</span><h2>' + esc(v.name) + '</h2><p>' + esc(v.bank || "Issuer not set") + '</p></div><span class="count-pill">' + assigned + ' assigned</span></div>' +
+        '<div class="variant-meta"><span>Annual fee</span><strong>' + (Number(v.annualFee) ? money(v.annualFee) : "Not set") + '</strong></div>' +
+        '<div class="variant-benefits"><div class="section-kicker">' + benefits.length + ' BENEFITS</div>' +
+        (benefits.length ? benefits.map(b => '<div class="benefit-definition"><div><strong>' + esc(b.name) + '</strong><small>' + esc(b.category || "Other") + ' · ' + esc(b.cycle || "Manual") + '</small></div><b>' + (Number(b.limit) > 0 ? esc(b.limit) + ' ' + esc(b.unit || "uses") : 'No cap') + '</b></div>').join("") : '<p class="muted">No benefits configured.</p>') + '</div>' +
+        (v.notes ? '<p class="variant-note">' + esc(v.notes) + '</p>' : '') +
+        '<div class="card-actions"><button class="button secondary small" data-action="edit-variant" data-id="' + esc(v.id) + '">Edit variant</button><button class="button quiet small" data-action="delete-variant" data-id="' + esc(v.id) + '">Delete</button></div></article>';
+    }).join("") + '</div>';
   }
   function renderCards() {
     const root = $("#cardsContent");
     if (!state.cards.length) {
-      root.innerHTML = '<div class="panel">' + emptyState("No cards added", "Add your cards and record the benefits and renewal cycle for each one.", "Add a card", "add-card") + '</div>';
+      root.innerHTML = '<div class="panel">' + empty("No cards added", "Create a variant first, then assign it to your own card or a family cardholder.", state.variants.length ? "Add a card" : "Create a variant", state.variants.length ? "add-card" : "add-variant") + '</div>';
       return;
     }
-    root.innerHTML = '<div class="supplier-grid">' + state.cards.map(card => {
-      const linked = state.vouchers.filter(v => v.cardId === card.id).length;
-      const benefits = (card.benefits || []).map(b => '<li>' + esc(b) + '</li>').join("");
-      return '<article class="supplier-card card-record"><div class="card-topline"><span class="card-network">' + esc(card.network || "CARD") + '</span><button class="icon-action" title="Delete card" data-action="delete-card" data-id="' + esc(card.id) + '">×</button></div>' +
-        '<div class="card-chip">▦</div><h3>' + esc(card.name) + '</h3><p>' + esc(card.bank || "Bank not specified") + (card.last4 ? ' · •••• ' + esc(card.last4) : '') + '</p>' +
-        '<div class="benefit-cycle">Benefit cycle <strong>' + esc(card.cycle || "Not set") + '</strong></div>' +
-        (benefits ? '<ul class="benefit-list">' + benefits + '</ul>' : '<p>No benefit notes added.</p>') +
-        '<div class="supplier-meta"><span>' + linked + ' linked vouchers</span><span>Added ' + dateLabel(card.createdDate) + '</span></div></article>';
+    root.innerHTML = '<div class="cards-grid">' + state.cards.map(card => {
+      const variant = getCardVariant(card);
+      const holder = getHolder(card.holderId);
+      const benefits = benefitList(variant);
+      const active = benefits.filter(b => Number(b.limit) > 0).length;
+      const used = benefits.filter(b => Number(b.limit) > 0 && benefitUsed(card.id, b) >= Number(b.limit)).length;
+      return '<article class="card-visual"><div class="card-topline"><span class="card-network">' + esc(variant?.network || card.network || "CARD") + '</span><span class="card-owner">' + esc(holder?.name || "Self") + '</span></div>' +
+        '<div class="card-chip">▦</div><h2>' + esc(card.name || variant?.name || "Card") + '</h2><p>' + esc(variant?.name || "Legacy / unassigned variant") + ' · ' + esc(variant?.bank || card.bank || "") + '</p>' +
+        '<div class="card-number">' + (card.last4 ? "•••• •••• •••• " + esc(card.last4) : "Last four digits not added") + '</div>' +
+        '<div class="card-foot"><span>' + benefits.length + ' benefits</span><span>' + used + '/' + active + ' limits exhausted</span></div>' +
+        '<div class="card-record-meta"><span>Expires ' + dateLabel(card.expiryDate) + '</span><span>' + esc(card.status || "Active") + '</span></div>' +
+        '<div class="card-actions"><button class="button secondary small" data-action="edit-card" data-id="' + esc(card.id) + '">Edit card</button><button class="button quiet small" data-action="delete-card" data-id="' + esc(card.id) + '">Delete</button><button class="button quiet small" data-action="card-benefits" data-id="' + esc(card.id) + '">Benefits ↗</button></div></article>';
     }).join("") + '</div>';
   }
+  function renderBenefits() {
+    const root = $("#benefitsContent");
+    const cardFilter = $("#benefitCardFilter");
+    const oldCard = cardFilter.value;
+    cardFilter.innerHTML = '<option value="">All cards</option>' + state.cards.map(c => '<option value="' + esc(c.id) + '">' + esc(cardLabel(c)) + '</option>').join("");
+    cardFilter.value = state.cards.some(c => c.id === oldCard) ? oldCard : "";
+    const cycleFilter = $("#benefitCycleFilter").value;
+    const rows = getBenefitRows().filter(x => (!cardFilter.value || x.card.id === cardFilter.value) && (!cycleFilter || x.benefit.cycle === cycleFilter));
+    root.innerHTML = rows.length ? '<div class="benefit-grid">' + rows.map(x => {
+      const limit = Number(x.benefit.limit) || 0;
+      const used = benefitUsed(x.card.id, x.benefit);
+      const left = limit ? Math.max(0, limit - used) : null;
+      const pct = limit ? Math.min(100, Math.round(used / limit * 100)) : 0;
+      const exhausted = limit > 0 && used >= limit;
+      return '<article class="panel benefit-card"><div class="benefit-card-top"><span class="category-pill">' + esc(x.benefit.category || "Other") + '</span><span class="count-pill">' + esc(x.benefit.cycle || "Manual") + '</span></div>' +
+        '<h2>' + esc(x.benefit.name) + '</h2><p class="muted">' + esc(cardLabel(x.card)) + ' · ' + esc(x.variant?.name || "") + '</p>' +
+        (limit ? '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used ' + esc(cycleCaption(x.benefit.cycle)) + '</small></div><div><strong>' + left + '</strong><small>Remaining</small></div><div><strong>' + limit + '</strong><small>Allowed</small></div></div><div class="progress-track"><div class="progress-fill" style="width:' + pct + '%"></div></div>' :
+        '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used ' + esc(cycleCaption(x.benefit.cycle)) + '</small></div><div><strong>—</strong><small>No defined cap</small></div></div>') +
+        (x.benefit.notes ? '<p class="benefit-note">' + esc(x.benefit.notes) + '</p>' : '') +
+        '<div class="benefit-card-actions"><button class="button ' + (exhausted ? 'quiet' : 'primary') + ' small" data-action="log-benefit" data-card-id="' + esc(x.card.id) + '" data-benefit-id="' + esc(x.benefit.id) + '"' + (exhausted ? ' disabled' : '') + '>＋ Log use</button><button class="button secondary small" data-action="benefit-history" data-card-id="' + esc(x.card.id) + '" data-benefit-id="' + esc(x.benefit.id) + '">History</button></div></article>';
+    }).join("") + '</div>' : '<div class="panel">' + empty("No benefits to track", "Add a card variant with benefit definitions and assign that variant to a card.", state.variants.length ? "Add a card" : "Create a variant", state.variants.length ? "add-card" : "add-variant") + '</div>';
+  }
+
   function renderVouchers() {
     const brandSelect = $("#brandFilter");
     if (!brandSelect) return;
@@ -147,32 +285,40 @@
     const brands = [...new Set(state.vouchers.map(v => v.brand).filter(Boolean))].sort((a,b) => a.localeCompare(b));
     brandSelect.innerHTML = '<option value="">All brands</option>' + brands.map(b => '<option value="' + esc(b) + '">' + esc(b) + '</option>').join("");
     brandSelect.value = brands.includes(oldBrand) ? oldBrand : "";
-
-    const query = ($("#voucherSearch")?.value || "").trim().toLowerCase();
-    const brand = brandSelect.value;
-    const source = $("#sourceFilter").value;
-    const status = $("#statusFilter").value;
+    const query = ($("#voucherSearch").value || "").trim().toLowerCase();
+    const brand = brandSelect.value, source = $("#sourceFilter").value, status = $("#statusFilter").value;
     const filtered = state.vouchers.filter(v => {
       const supplier = v.supplier?.name || "";
-      const matchText = [v.brand, v.code, supplier, v.familyName, v.cardName].join(" ").toLowerCase().includes(query);
-      return matchText && (!brand || v.brand === brand) && (!source || v.source === source) && (!status || v.status === status);
-    }).sort((a,b) => {
-      const da = a.expiryDate || "9999-12-31", db = b.expiryDate || "9999-12-31";
-      return da.localeCompare(db);
-    });
+      return [v.brand, v.code, supplier, v.familyName, v.cardName].join(" ").toLowerCase().includes(query) &&
+        (!brand || v.brand === brand) && (!source || v.source === source) && (!status || v.status === status);
+    }).sort((a,b) => (a.expiryDate || "9999-12-31").localeCompare(b.expiryDate || "9999-12-31"));
     const avail = filtered.filter(v => v.status === "available").length;
     const sold = filtered.filter(v => v.status === "sold").length;
     const redeemed = filtered.filter(v => v.status === "redeemed").length;
-    $("#inventorySummary").innerHTML = '<span><strong>' + filtered.length + '</strong> codes</span><span><strong>' + avail + '</strong> available</span><span><strong>' + sold + '</strong> sold</span><span><strong>' + redeemed + '</strong> redeemed</span>' + (brand ? '<span>Brand: <strong>' + esc(brand) + '</strong></span>' : '');
+    $("#inventorySummary").innerHTML = '<span><strong>' + filtered.length + '</strong> codes</span><span><strong>' + avail + '</strong> available</span><span><strong>' + sold + '</strong> sold</span><span><strong>' + redeemed + '</strong> redeemed</span>';
     $("#voucherTable").innerHTML = filtered.length ? '<table class="data-table"><thead><tr><th><input type="checkbox" id="selectVisible" aria-label="Select visible vouchers"></th><th>Brand / code</th><th>Origin</th><th>Purchased from</th><th>Value</th><th>Expiry</th><th>Status</th></tr></thead><tbody>' +
       filtered.map(v => '<tr><td class="check-cell"><input type="checkbox" class="voucher-check" data-id="' + esc(v.id) + '" ' + (selectedIds.has(v.id) ? "checked" : "") + ' aria-label="Select code"></td>' +
       '<td><span class="brand-cell">' + esc(v.brand) + '</span><br><button class="code-link" data-action="voucher-detail" data-id="' + esc(v.id) + '">' + esc(v.code) + '</button></td>' +
       '<td>' + sourceTag(v.source) + (v.source === "family" && v.familyName ? '<br><small class="muted">' + esc(v.familyName) + '</small>' : '') + '</td>' +
       '<td>' + (v.supplier?.name ? '<strong>' + esc(v.supplier.name) + '</strong><br><small class="muted">' + esc(v.supplier.phone || "") + '</small>' : '<span class="muted">—</span>') + '</td>' +
       '<td>' + money(v.value) + '</td><td>' + dateLabel(v.expiryDate) + '</td><td>' + statusPill(v.status) + '</td></tr>').join("") +
-      '</tbody></table>' : emptyState("No matching vouchers", state.vouchers.length ? "Try changing the filters or search term." : "Add voucher codes individually or paste a list to add them in bulk.", "Add vouchers", "add-voucher");
+      '</tbody></table>' : empty("No matching vouchers", state.vouchers.length ? "Try changing the filters or search term." : "Add voucher codes individually or paste a list to add them in bulk.", "Add vouchers", "add-voucher");
     $("#bulkActions").classList.toggle("show", selectedIds.size > 0);
     $("#selectedCount").textContent = selectedIds.size + " selected";
+  }
+  function renderFamily() {
+    const root = $("#familyContent");
+    const rows = state.holders.map(holder => {
+      const cards = state.cards.filter(c => c.holderId === holder.id);
+      const vouchers = state.vouchers.filter(v => v.source === "family" && (v.holderId === holder.id || v.familyName === holder.name));
+      return '<article class="panel holder-card"><div class="holder-avatar">' + esc(holder.name.slice(0,1).toUpperCase()) + '</div><div class="holder-main"><h2>' + esc(holder.name) + '</h2><p>' + esc(holder.relation || "Family / cardholder") + (holder.phone ? ' · ' + esc(holder.phone) : '') + '</p>' +
+        '<div class="holder-counts"><span>' + cards.length + ' cards</span><span>' + vouchers.length + ' family vouchers</span></div>' +
+        (holder.notes ? '<p class="muted">' + esc(holder.notes) + '</p>' : '') +
+        '<div class="card-actions"><button class="button secondary small" data-action="edit-holder" data-id="' + esc(holder.id) + '">Edit</button><button class="button quiet small" data-action="delete-holder" data-id="' + esc(holder.id) + '">Delete</button></div></div></article>';
+    });
+    const cardCount = state.cards.filter(c => c.holderId).length;
+    root.innerHTML = '<div class="family-summary"><span><strong>' + state.holders.length + '</strong> cardholders</span><span><strong>' + cardCount + '</strong> assigned cards</span></div>' +
+      (rows.length ? '<div class="holder-grid">' + rows.join("") + '</div>' : '<div class="panel">' + empty("No family cardholders", "Add a family member once, then select them when assigning cards or adding family vouchers.", "Add cardholder", "add-holder") + '</div>');
   }
   function renderSuppliers() {
     const root = $("#suppliersContent");
@@ -185,8 +331,8 @@
     const items = [...groups.values()].sort((a,b) => a.name.localeCompare(b.name));
     root.innerHTML = items.length ? '<div class="supplier-grid">' + items.map(s => {
       const available = s.vouchers.filter(v => v.status === "available").length;
-      return '<article class="supplier-card"><div class="supplier-avatar">' + esc(s.name.slice(0,1).toUpperCase()) + '</div><h3>' + esc(s.name) + '</h3><p>' + esc(s.phone || "No phone number") + '</p><div class="supplier-meta"><span>' + s.vouchers.length + ' vouchers</span><span>' + available + ' available</span></div><div class="supplier-codes">' + s.vouchers.slice(0,4).map(v => '<button class="code-link" data-action="voucher-detail" data-id="' + esc(v.id) + '">' + esc(v.brand) + ' · ' + esc(v.code) + '</button>').join("<br>") + (s.vouchers.length > 4 ? '<small class="muted">+' + (s.vouchers.length-4) + ' more</small>' : '') + '</div></article>';
-    }).join("") + '</div>' : '<div class="panel">' + emptyState("No suppliers recorded", "When adding purchased vouchers, enter the seller name and phone. Those details will be saved against every code in that batch.") + '</div>';
+      return '<article class="supplier-card"><div class="supplier-avatar">' + esc(s.name.slice(0,1).toUpperCase()) + '</div><h3>' + esc(s.name) + '</h3><p>' + esc(s.phone || "No phone number") + '</p><div class="supplier-meta"><span>' + s.vouchers.length + ' vouchers</span><span>' + available + ' available</span></div><div class="supplier-codes">' + s.vouchers.slice(0,8).map(v => '<button class="code-link" data-action="voucher-detail" data-id="' + esc(v.id) + '">' + esc(v.brand) + ' · ' + esc(v.code) + '</button>').join("<br>") + '</div></article>';
+    }).join("") + '</div>' : '<div class="panel">' + empty("No suppliers recorded", "When you add purchased vouchers, save the seller name and phone to build supplier history.") + '</div>';
   }
 
   function modal(title, body, footer) {
@@ -201,148 +347,279 @@
     root.setAttribute("aria-hidden", "true");
     root.innerHTML = "";
   }
-  function showAddVoucher() {
-    const cards = state.cards.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + ' · ' + esc(c.bank || "") + '</option>').join("");
-    modal("Add voucher codes",
-      '<p class="form-note">Paste one code per line to add a batch. The selected origin and supplier details will be attached to every code in that batch.</p>' +
-      '<form id="voucherForm"><div class="form-grid">' +
-      '<div class="field"><label for="vBrand">Brand name *</label><input id="vBrand" name="brand" required placeholder="e.g. Amazon, Swiggy"></div>' +
-      '<div class="field"><label for="vValue">Voucher value (₹)</label><input id="vValue" name="value" type="number" min="0" step="1" placeholder="Optional"></div>' +
-      '<div class="field full"><label for="vCodes">Voucher code(s) *</label><textarea id="vCodes" name="codes" required placeholder="CODE-1234&#10;CODE-5678&#10;CODE-9012"></textarea><small>One code per line. Each code becomes a separate inventory record.</small></div>' +
-      '<div class="field"><label for="vSource">Origin *</label><select id="vSource" name="source"><option value="self">Generated by me</option><option value="family">Family cards</option><option value="purchased">Purchased from others</option></select></div>' +
-      '<div class="field"><label for="vExpiry">Expiry date</label><input id="vExpiry" name="expiryDate" type="date"></div>' +
-      '<div class="field conditional" id="familyFields"><label for="vFamily">Family member / cardholder *</label><input id="vFamily" name="familyName" placeholder="Name or family card"></div>' +
-      '<div class="field conditional" id="familyCardField"><label for="vFamilyCard">Card (optional)</label><select id="vCard" name="cardId"><option value="">Select a card</option>' + cards + '</select></div>' +
-      '<div class="field conditional full" id="supplierFields"><label for="vSupplier">Purchased from — name *</label><input id="vSupplier" name="supplierName" placeholder="Seller name"></div>' +
-      '<div class="field conditional full" id="supplierPhoneField"><label for="vPhone">Seller phone number *</label><input id="vPhone" name="supplierPhone" type="tel" placeholder="Phone number"></div>' +
-      '<div class="field full"><label for="vNotes">Notes (optional)</label><input id="vNotes" name="notes" placeholder="Any extra details"></div>' +
-      '</div></form>',
-      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-voucher">Save voucher codes</button></div>'
-    );
-    $("#vSource").addEventListener("change", updateSourceFields);
-    updateSourceFields();
+  function optionList(items, selected, placeholder) {
+    return '<option value="">' + esc(placeholder) + '</option>' + items.map(x => '<option value="' + esc(x.id) + '" ' + (x.id === selected ? "selected" : "") + '>' + esc(x.label) + '</option>').join("");
   }
-  function updateSourceFields() {
+  function addBenefitEditorRow(b = {}) {
+    const root = $("#benefitEditorRows");
+    if (!root) return;
+    const row = document.createElement("div");
+    row.className = "benefit-editor-row";
+    row.dataset.benefitRow = "1";
+    row.innerHTML = '<div class="field"><label>Benefit name *</label><input data-field="name" required maxlength="90" placeholder="e.g. Domestic lounge access" value="' + esc(b.name || "") + '"></div>' +
+      '<div class="field"><label>Category</label><select data-field="category">' + ["Lounge","Travel","Dining","Movies","Shopping","Fuel","Wellness","Other"].map(x => '<option ' + ((b.category || "Lounge") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field"><label>Reset cycle</label><select data-field="cycle">' + ["Monthly","Quarterly","Semi-annual","Annual","One-time","Manual"].map(x => '<option ' + ((b.cycle || "Quarterly") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field"><label>Limit per cycle</label><input data-field="limit" type="number" min="0" step="1" value="' + esc(b.limit ?? 0) + '" placeholder="0 = no cap"></div>' +
+      '<div class="field"><label>Unit</label><select data-field="unit">' + ["visits","transactions","tickets","uses","₹ value"].map(x => '<option ' + ((b.unit || "visits") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field"><label>Notes / conditions</label><input data-field="notes" value="' + esc(b.notes || "") + '" placeholder="Optional terms or eligibility"></div>' +
+      '<button class="icon-action remove-benefit-row" type="button" data-action="remove-benefit-row" aria-label="Remove benefit">×</button>';
+    root.appendChild(row);
+  }
+  function showVariantForm(id) {
+    const variant = id ? getVariant(id) : null;
+    const v = variant || {};
+    const benefitRows = benefitList(v);
+    modal(variant ? "Edit card variant" : "Create card variant",
+      '<p class="form-note">Add the card issuer and reusable benefits. Set a limit of 0 when there is no fixed usage cap.</p>' +
+      '<form id="variantForm"><div class="form-grid">' +
+      '<div class="field"><label>Variant name *</label><input name="name" required value="' + esc(v.name || "") + '" placeholder="e.g. RuPay Select"></div>' +
+      '<div class="field"><label>Bank / issuer *</label><input name="bank" required value="' + esc(v.bank || "") + '" placeholder="e.g. HDFC Bank"></div>' +
+      '<div class="field"><label>Network</label><select name="network">' + ["RuPay","Visa","Mastercard","American Express","Other"].map(x => '<option ' + ((v.network || "RuPay") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field"><label>Annual fee (₹)</label><input name="annualFee" type="number" min="0" step="1" value="' + esc(v.annualFee || 0) + '" placeholder="0"></div>' +
+      '<div class="field full"><label>Variant notes</label><textarea name="notes" rows="2" placeholder="Eligibility, joining fee waiver or other terms">' + esc(v.notes || "") + '</textarea></div>' +
+      '<div class="field full"><div class="editor-heading"><div><strong>Benefits included in this variant</strong><small>Each benefit has its own cycle and usage limit.</small></div><button class="button secondary small" type="button" data-action="add-benefit-row">＋ Add benefit</button></div></div>' +
+      '<div class="field full"><div id="benefitEditorRows" class="benefit-editor-list"></div></div></div></form>',
+      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-variant" data-id="' + esc(id || "") + '">Save variant</button></div>');
+    (benefitRows.length ? benefitRows : [{}]).forEach(addBenefitEditorRow);
+  }
+  function showHolderForm(id) {
+    const holder = id ? getHolder(id) : null;
+    modal(holder ? "Edit cardholder" : "Add family cardholder",
+      '<form id="holderForm"><div class="form-grid">' +
+      '<div class="field"><label>Name *</label><input name="name" required maxlength="80" value="' + esc(holder?.name || "") + '" placeholder="Family member name"></div>' +
+      '<div class="field"><label>Relationship</label><input name="relation" value="' + esc(holder?.relation || "") + '" placeholder="e.g. Spouse, parent"></div>' +
+      '<div class="field"><label>Phone (optional)</label><input name="phone" type="tel" value="' + esc(holder?.phone || "") + '" placeholder="Contact number"></div>' +
+      '<div class="field"><label>Email (optional)</label><input name="email" type="email" value="' + esc(holder?.email || "") + '" placeholder="Email address"></div>' +
+      '<div class="field full"><label>Notes</label><textarea name="notes" rows="2">' + esc(holder?.notes || "") + '</textarea></div></div></form>',
+      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-holder" data-id="' + esc(id || "") + '">Save cardholder</button></div>');
+  }
+  function showCardForm(id) {
+    if (!state.variants.length) { notify("Create a card variant before adding a card."); openView("variants"); showVariantForm(); return; }
+    const card = id ? getCard(id) : null;
+    const variantOptions = state.variants.map(v => ({ id:v.id, label:v.name + " · " + v.bank }));
+    const holderOptions = state.holders.map(h => ({ id:h.id, label:h.name + (h.relation ? " · " + h.relation : "") }));
+    modal(card ? "Edit card" : "Add a card",
+      '<p class="form-note">Only save the last four digits as a label. Never enter a full card number, CVV, PIN or banking password.</p>' +
+      '<form id="cardForm"><div class="form-grid">' +
+      '<div class="field full"><label>Card variant *</label><select name="variantId" required>' + optionList(variantOptions, card?.variantId || "", "Choose a configured variant") + '</select></div>' +
+      '<div class="field"><label>Cardholder</label><select name="holderId">' + optionList(holderOptions, card?.holderId || "", "Self / primary account") + '</select></div>' +
+      '<div class="field"><label>Card nickname</label><input name="name" value="' + esc(card?.name || "") + '" placeholder="Optional e.g. Personal card"></div>' +
+      '<div class="field"><label>Last 4 digits</label><input name="last4" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" value="' + esc(card?.last4 || "") + '" placeholder="Optional"></div>' +
+      '<div class="field"><label>Expiry date</label><input name="expiryDate" type="month" value="' + esc(card?.expiryDate || "") + '"></div>' +
+      '<div class="field"><label>Status</label><select name="status">' + ["Active","Blocked","Closed","Expired"].map(x => '<option ' + ((card?.status || "Active") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field full"><label>Notes</label><textarea name="notes" rows="2">' + esc(card?.notes || "") + '</textarea></div></div></form>',
+      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
+  }
+  function showVoucherForm(id) {
+    const v = id ? state.vouchers.find(x => x.id === id) : null;
+    const cardOptions = state.cards.map(c => ({ id:c.id, label:cardLabel(c) }));
+    const holderOptions = state.holders.map(h => ({ id:h.id, label:h.name }));
+    modal(v ? "Edit voucher" : "Add voucher codes",
+      '<p class="form-note">' + (v ? "Update this inventory record." : "Paste one code per line. Each line becomes an independent voucher record.") + '</p>' +
+      '<form id="voucherForm"><div class="form-grid">' +
+      '<div class="field"><label>Brand name *</label><input name="brand" required value="' + esc(v?.brand || "") + '" placeholder="e.g. Amazon, Swiggy"></div>' +
+      '<div class="field"><label>Voucher value (₹)</label><input name="value" type="number" min="0" step="1" value="' + esc(v?.value || "") + '"></div>' +
+      '<div class="field full"><label>Voucher code(s) *</label><textarea name="codes" required ' + (v ? 'readonly rows="2"' : 'rows="4"') + ' placeholder="One code per line">' + esc(v?.code || "") + '</textarea></div>' +
+      '<div class="field"><label>Origin *</label><select name="source" id="vSource">' + [["self","Generated by me"],["family","Family cards"],["purchased","Purchased from others"]].map(x => '<option value="' + x[0] + '" ' + ((v?.source || "self") === x[0] ? "selected" : "") + '>' + x[1] + '</option>').join("") + '</select></div>' +
+      '<div class="field"><label>Expiry date</label><input name="expiryDate" type="date" value="' + esc(v?.expiryDate || "") + '"></div>' +
+      '<div class="field conditional" id="familyFields"><label>Family cardholder</label><select name="holderId">' + optionList(holderOptions, v?.holderId || "", "Choose cardholder") + '</select></div>' +
+      '<div class="field conditional" id="familyCardField"><label>Related card</label><select name="cardId">' + optionList(cardOptions, v?.cardId || "", "Optional card") + '</select></div>' +
+      '<div class="field conditional full" id="supplierFields"><label>Purchased from — name *</label><input name="supplierName" value="' + esc(v?.supplier?.name || "") + '" placeholder="Seller name"></div>' +
+      '<div class="field conditional full" id="supplierPhoneField"><label>Seller phone number *</label><input name="supplierPhone" type="tel" value="' + esc(v?.supplier?.phone || "") + '" placeholder="Phone number"></div>' +
+      '<div class="field"><label>Status</label><select name="status">' + ["available","sold","redeemed"].map(x => '<option ' + ((v?.status || "available") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field full"><label>Notes</label><input name="notes" value="' + esc(v?.notes || "") + '" placeholder="Optional details"></div></div></form>',
+      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-voucher" data-id="' + esc(id || "") + '">' + (v ? "Save changes" : "Save voucher codes") + '</button></div>');
+    $("#vSource").addEventListener("change", updateVoucherSourceFields);
+    updateVoucherSourceFields();
+  }
+  function updateVoucherSourceFields() {
     const source = $("#vSource")?.value;
     $("#familyFields")?.classList.toggle("show", source === "family");
     $("#familyCardField")?.classList.toggle("show", source === "family");
     $("#supplierFields")?.classList.toggle("show", source === "purchased");
     $("#supplierPhoneField")?.classList.toggle("show", source === "purchased");
-    $("#vFamily")?.toggleAttribute("required", source === "family");
-    $("#vSupplier")?.toggleAttribute("required", source === "purchased");
-    $("#vPhone")?.toggleAttribute("required", source === "purchased");
-  }
-  function showAddCard() {
-    modal("Add a credit card",
-      '<form id="cardForm"><div class="form-grid">' +
-      '<div class="field full"><label for="cName">Card name / variant *</label><input id="cName" name="name" required placeholder="e.g. RuPay Platinum, Select"></div>' +
-      '<div class="field"><label for="cBank">Bank / issuer *</label><input id="cBank" name="bank" required placeholder="e.g. HDFC Bank"></div>' +
-      '<div class="field"><label for="cNetwork">Network</label><select id="cNetwork" name="network"><option>RuPay</option><option>Visa</option><option>Mastercard</option><option>American Express</option><option>Other</option></select></div>' +
-      '<div class="field"><label for="cLast4">Last 4 digits (optional)</label><input id="cLast4" name="last4" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="1234"></div>' +
-      '<div class="field"><label for="cCycle">Main benefit cycle</label><select id="cCycle" name="cycle"><option>Monthly</option><option>Quarterly</option><option>Semi-annual</option><option>Annual</option><option>Mixed / multiple cycles</option></select></div>' +
-      '<div class="field full"><label for="cBenefits">Benefits / limits (one per line)</label><textarea id="cBenefits" name="benefits" placeholder="e.g. 4 lounge visits per quarter&#10;Movie offer — once per month&#10;Dining offer — annual"></textarea><small>Record benefit names and cycle notes. Never enter a full card number, CVV or banking password.</small></div>' +
-      '</div></form>',
-      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card">Save card</button></div>'
-    );
+    $("#holderForm")?.toggleAttribute("required", source === "family");
+    $("#supplierFields input")?.toggleAttribute("required", source === "purchased");
+    $("#supplierPhoneField input")?.toggleAttribute("required", source === "purchased");
   }
 
   function showVoucherDetail(id) {
     const v = state.vouchers.find(x => x.id === id);
     if (!v) return;
-    const card = state.cards.find(c => c.id === v.cardId);
+    const card = getCard(v.cardId);
+    const holder = getHolder(v.holderId);
     let originDetail = v.source === "purchased"
       ? '<div class="detail-item"><small>Purchased from</small><strong>' + esc(v.supplier?.name || "—") + '</strong></div><div class="detail-item"><small>Seller phone</small><strong>' + esc(v.supplier?.phone || "—") + '</strong></div>'
       : v.source === "family"
-      ? '<div class="detail-item"><small>Family member / cardholder</small><strong>' + esc(v.familyName || "—") + '</strong></div><div class="detail-item"><small>Card</small><strong>' + esc(card?.name || v.cardName || "—") + '</strong></div>'
-      : '<div class="detail-item"><small>Origin</small><strong>Generated by me</strong></div><div class="detail-item"><small>Card</small><strong>' + esc(card?.name || "—") + '</strong></div>';
+      ? '<div class="detail-item"><small>Family cardholder</small><strong>' + esc(holder?.name || v.familyName || "—") + '</strong></div><div class="detail-item"><small>Card</small><strong>' + esc(cardLabel(card || {})) + '</strong></div>'
+      : '<div class="detail-item"><small>Origin</small><strong>Generated by me</strong></div><div class="detail-item"><small>Card</small><strong>' + esc(card ? cardLabel(card) : "—") + '</strong></div>';
     const body = '<div class="detail-grid"><div class="detail-item"><small>Brand</small><strong>' + esc(v.brand) + '</strong></div><div class="detail-item"><small>Voucher code</small><strong class="mono">' + esc(v.code) + '</strong></div>' +
       '<div class="detail-item"><small>Origin</small><strong>' + esc(sourceLabel(v.source)) + '</strong></div><div class="detail-item"><small>Status</small><strong>' + statusPill(v.status) + '</strong></div>' +
       '<div class="detail-item"><small>Voucher value</small><strong>' + money(v.value) + '</strong></div><div class="detail-item"><small>Expiry</small><strong>' + dateLabel(v.expiryDate) + '</strong></div>' +
-      '<div class="detail-divider"></div>' + originDetail + (v.notes ? '<div class="detail-divider"></div><div class="detail-item" style="grid-column:span 2"><small>Notes</small><strong>' + esc(v.notes) + '</strong></div>' : '') + '</div>';
+      '<div class="detail-divider"></div>' + originDetail + (v.notes ? '<div class="detail-divider"></div><div class="detail-item wide"><small>Notes</small><strong>' + esc(v.notes) + '</strong></div>' : '') + '</div>';
     modal(v.brand + " · Voucher details", body,
-      '<div class="modal-footer"><button class="button quiet small" data-action="delete-voucher" data-id="' + esc(v.id) + '">Delete</button><button class="button secondary small" data-action="copy-code" data-id="' + esc(v.id) + '">Copy code</button>' +
-      '<button class="button secondary small" data-action="set-status" data-status="available" data-id="' + esc(v.id) + '">Available</button><button class="button secondary small" data-action="set-status" data-status="sold" data-id="' + esc(v.id) + '">Sold</button><button class="button primary small" data-action="set-status" data-status="redeemed" data-id="' + esc(v.id) + '">Redeemed</button></div>'
-    );
+      '<div class="modal-footer modal-footer-wrap"><button class="button quiet small" data-action="delete-voucher" data-id="' + esc(v.id) + '">Delete</button><button class="button secondary small" data-action="copy-code" data-id="' + esc(v.id) + '">Copy code</button><button class="button secondary small" data-action="edit-voucher" data-id="' + esc(v.id) + '">Edit</button><button class="button primary small" data-action="close-modal">Done</button></div>');
+  }
+  function showBenefitUseForm(cardId, benefitId) {
+    const card = getCard(cardId), variant = getCardVariant(card);
+    const benefit = benefitList(variant).find(b => b.id === benefitId);
+    if (!card || !benefit) return;
+    const limit = Number(benefit.limit) || 0;
+    const used = benefitUsed(cardId, benefit);
+    const left = limit ? Math.max(0, limit - used) : null;
+    modal("Log benefit usage",
+      '<p class="form-note"><strong>' + esc(benefit.name) + '</strong><br>' + esc(cardLabel(card)) + ' · ' + esc(benefit.cycle) + ' cycle. ' + (limit ? left + ' ' + esc(benefit.unit || "uses") + ' remaining in this cycle.' : 'No usage cap is configured.') + '</p>' +
+      '<form id="benefitUseForm"><div class="form-grid"><div class="field"><label>Usage date *</label><input name="usedAt" type="date" required value="' + todayISO() + '"></div>' +
+      '<div class="field"><label>Quantity (' + esc(benefit.unit || "uses") + ') *</label><input name="quantity" type="number" min="1" step="1" value="1" required></div>' +
+      '<div class="field"><label>Amount (₹, optional)</label><input name="amount" type="number" min="0" step="1" placeholder="Optional"></div>' +
+      '<div class="field full"><label>Notes / reference</label><input name="notes" placeholder="e.g. Lounge visit at airport"></div></div></form>',
+      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-benefit-use" data-card-id="' + esc(cardId) + '" data-benefit-id="' + esc(benefitId) + '">Save usage</button></div>');
+  }
+  function showBenefitHistory(cardId, benefitId) {
+    const card = getCard(cardId), variant = getCardVariant(card);
+    const benefit = benefitList(variant).find(b => b.id === benefitId);
+    if (!card || !benefit) return;
+    const items = state.benefitUsages.filter(u => u.cardId === cardId && u.benefitId === benefitId).sort((a,b) => (b.usedAt || "").localeCompare(a.usedAt || ""));
+    const body = items.length ? '<div class="history-list">' + items.map(u =>
+      '<div class="history-item"><div><strong>' + esc(dateLabel(u.usedAt)) + '</strong><small>' + esc(u.quantity || 1) + ' ' + esc(benefit.unit || "uses") + (u.amount ? ' · ' + money(u.amount) : '') + (u.notes ? ' · ' + esc(u.notes) : '') + '</small></div><button class="button quiet small" data-action="delete-usage" data-id="' + esc(u.id) + '">Undo</button></div>'
+    ).join("") + '</div>' : empty("No usage recorded", "Usage entries will appear here after you log a visit or transaction.");
+    modal(benefit.name + " · Usage history", body, '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Close</button></div>');
   }
 
-  function addVoucherBatch(form) {
+  function readBenefitRows(form) {
+    return $$("[data-benefit-row]", form).map(row => {
+      const val = name => $("[data-field='" + name + "']", row)?.value?.trim() || "";
+      return {
+        id: row.dataset.benefitId || uid(), name:val("name"), category:val("category"),
+        cycle:val("cycle"), limit:Number(val("limit")) || 0, unit:val("unit") || "uses", notes:val("notes")
+      };
+    }).filter(b => b.name);
+  }
+  function saveVariant(form, id) {
+    const data = new FormData(form);
+    const name = String(data.get("name") || "").trim(), bank = String(data.get("bank") || "").trim();
+    if (!name || !bank) return notify("Enter the variant name and bank / issuer.");
+    const benefits = readBenefitRows(form);
+    const old = id ? getVariant(id) : null;
+    const record = {
+      id: old?.id || uid(), name, bank, network:String(data.get("network") || "RuPay"),
+      annualFee:Number(data.get("annualFee")) || 0, notes:String(data.get("notes") || "").trim(),
+      benefits, createdAt:old?.createdAt || new Date().toISOString(), updatedAt:new Date().toISOString()
+    };
+    if (old) state.variants = state.variants.map(v => v.id === id ? record : v);
+    else state.variants.push(record);
+    persist(); closeModal(); render(); notify("Card variant saved.");
+  }
+  function saveHolder(form, id) {
+    const data = new FormData(form), name = String(data.get("name") || "").trim();
+    if (!name) return notify("Enter the cardholder name.");
+    const old = id ? getHolder(id) : null;
+    const record = {
+      id:old?.id || uid(), name, relation:String(data.get("relation") || "").trim(),
+      phone:String(data.get("phone") || "").trim(), email:String(data.get("email") || "").trim(),
+      notes:String(data.get("notes") || "").trim(), createdAt:old?.createdAt || new Date().toISOString()
+    };
+    if (old) state.holders = state.holders.map(h => h.id === id ? record : h);
+    else state.holders.push(record);
+    persist(); closeModal(); render(); notify("Cardholder saved.");
+  }
+  function saveCard(form, id) {
+    const data = new FormData(form);
+    const variant = getVariant(String(data.get("variantId") || ""));
+    if (!variant) return notify("Choose a valid card variant.");
+    const last4 = String(data.get("last4") || "").trim();
+    if (last4 && !/^\d{4}$/.test(last4)) return notify("Enter only the last four digits.");
+    const old = id ? getCard(id) : null;
+    const record = {
+      id:old?.id || uid(), variantId:variant.id, name:String(data.get("name") || "").trim() || variant.name,
+      bank:variant.bank, network:variant.network, holderId:String(data.get("holderId") || "") || null,
+      last4, expiryDate:String(data.get("expiryDate") || ""), status:String(data.get("status") || "Active"),
+      notes:String(data.get("notes") || "").trim(), createdDate:old?.createdDate || todayISO(),
+      createdAt:old?.createdAt || new Date().toISOString()
+    };
+    if (old) state.cards = state.cards.map(c => c.id === id ? record : c);
+    else state.cards.push(record);
+    persist(); closeModal(); render(); notify(old ? "Card updated." : "Card added.");
+  }
+  function addVoucherBatch(form, id) {
     const data = new FormData(form);
     const brand = String(data.get("brand") || "").trim();
     const codes = [...new Set(String(data.get("codes") || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean))];
     const source = String(data.get("source") || "self");
     const supplierName = String(data.get("supplierName") || "").trim();
     const supplierPhone = String(data.get("supplierPhone") || "").trim();
-    const familyName = String(data.get("familyName") || "").trim();
     if (!brand || !codes.length) return notify("Enter a brand and at least one voucher code.");
     if (source === "purchased" && (!supplierName || !supplierPhone)) return notify("Enter the seller's name and phone number.");
-    if (source === "family" && !familyName) return notify("Enter the family member or cardholder name.");
+    const holderId = String(data.get("holderId") || "");
+    const holder = getHolder(holderId);
     const cardId = String(data.get("cardId") || "");
-    const card = state.cards.find(c => c.id === cardId);
-    const supplier = source === "purchased" ? { name:supplierName, phone:supplierPhone } : null;
+    const card = getCard(cardId);
     const common = {
-      brand, source, supplier, familyName, cardId:cardId || null,
-      cardName:card?.name || "", value:Number(data.get("value")) || 0,
+      brand, source, supplier:source === "purchased" ? { name:supplierName, phone:supplierPhone } : null,
+      holderId:holderId || null, familyName:holder?.name || "", cardId:cardId || null,
+      cardName:card ? cardLabel(card) : "", value:Number(data.get("value")) || 0,
       expiryDate:String(data.get("expiryDate") || ""), notes:String(data.get("notes") || "").trim(),
-      status:"available"
+      status:String(data.get("status") || "available")
     };
+    if (id) {
+      const old = state.vouchers.find(v => v.id === id);
+      if (!old) return;
+      state.vouchers = state.vouchers.map(v => v.id === id ? { ...v, ...common, code:codes[0] } : v);
+      persist(); closeModal(); render(); notify("Voucher updated."); return;
+    }
     const now = new Date().toISOString();
     codes.forEach(code => state.vouchers.push({ ...common, id:uid(), code, createdAt:now }));
-    persist();
-    closeModal();
-    selectedIds.clear();
-    render();
+    persist(); closeModal(); selectedIds.clear(); render();
     notify(codes.length + " voucher" + (codes.length === 1 ? "" : "s") + " saved.");
   }
-  function addCard(form) {
+  function submitBenefitUse(form, cardId, benefitId) {
     const data = new FormData(form);
-    const name = String(data.get("name") || "").trim();
-    const bank = String(data.get("bank") || "").trim();
-    if (!name || !bank) return notify("Enter a card name and bank.");
-    const last4 = String(data.get("last4") || "").trim();
-    if (last4 && !/^\d{4}$/.test(last4)) return notify("Enter only the last 4 digits.");
-    state.cards.push({
-      id:uid(), name, bank, network:String(data.get("network") || "RuPay"),
-      last4, cycle:String(data.get("cycle") || "Monthly"),
-      benefits:String(data.get("benefits") || "").split(/\r?\n/).map(s=>s.trim()).filter(Boolean),
-      createdDate:new Date().toISOString().slice(0,10)
+    const usedAt = String(data.get("usedAt") || todayISO());
+    const quantity = Number(data.get("quantity")) || 0;
+    const card = getCard(cardId), benefit = benefitList(getCardVariant(card)).find(b => b.id === benefitId);
+    if (!benefit || !quantity || quantity < 1) return notify("Enter a valid usage quantity.");
+    const limit = Number(benefit.limit) || 0;
+    const used = benefitUsed(cardId, benefit, usedAt);
+    if (limit && used + quantity > limit) return notify("This usage would exceed the " + benefit.cycle + " limit of " + limit + ".");
+    state.benefitUsages.push({
+      id:uid(), cardId, benefitId, usedAt, quantity,
+      amount:Number(data.get("amount")) || 0, notes:String(data.get("notes") || "").trim(),
+      createdAt:new Date().toISOString()
     });
-    persist();
-    closeModal();
-    render();
-    notify("Card added.");
+    persist(); closeModal(); render(); notify("Benefit usage recorded.");
   }
-  function changeStatus(id, status) {
-    const v = state.vouchers.find(x => x.id === id);
-    if (!v) return;
-    v.status = status;
-    persist();
-    closeModal();
-    render();
-    notify("Voucher marked " + status + ".");
+  function deleteUsage(id) {
+    if (!window.confirm("Undo this benefit usage entry?")) return;
+    state.benefitUsages = state.benefitUsages.filter(u => u.id !== id);
+    persist(); closeModal(); render(); notify("Usage entry removed.");
   }
-  async function copyText(text) {
-    try {
-      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
-      else {
-        const input = document.createElement("textarea");
-        input.value = text; input.style.position = "fixed"; input.style.opacity = "0";
-        document.body.appendChild(input); input.select();
-        const ok = document.execCommand("copy"); input.remove();
-        if (!ok) throw new Error("copy failed");
-      }
-      notify("Copied to clipboard.");
-    } catch {
-      notify("Copy was blocked by the browser. Select the code manually.");
-    }
+  function deleteCard(id) {
+    const card = getCard(id);
+    if (!card) return;
+    const uses = state.benefitUsages.filter(u => u.cardId === id).length;
+    const prompt = "Delete " + cardLabel(card) + "?" + (uses ? " Its " + uses + " benefit usage entries will also be deleted." : "");
+    if (!window.confirm(prompt)) return;
+    state.cards = state.cards.filter(c => c.id !== id);
+    state.benefitUsages = state.benefitUsages.filter(u => u.cardId !== id);
+    state.vouchers.forEach(v => { if (v.cardId === id) { v.cardId = null; v.cardName = ""; } });
+    persist(); render(); notify("Card deleted.");
+  }
+  function deleteVariant(id) {
+    const variant = getVariant(id);
+    if (!variant) return;
+    const assigned = state.cards.filter(c => c.variantId === id).length;
+    if (assigned) return notify("This variant is assigned to " + assigned + " card(s). Reassign or delete those cards first.");
+    if (!window.confirm("Delete variant " + variant.name + "?")) return;
+    state.variants = state.variants.filter(v => v.id !== id);
+    persist(); render(); notify("Variant deleted.");
   }
   function exportBackup() {
-    const backup = { app:"RuPay Benefits", version:1, exportedAt:new Date().toISOString(), ...state };
+    const backup = { app:"RuPay Benefits", version:2, exportedAt:new Date().toISOString(), ...state };
     const blob = new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "rupay-benefits-backup-" + new Date().toISOString().slice(0,10) + ".json";
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = "rupay-benefits-backup-" + todayISO() + ".json";
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    notify("Backup downloaded.");
+    notify("Full workspace backup downloaded.");
   }
   function importBackup(file) {
     const reader = new FileReader();
@@ -350,18 +627,29 @@
       try {
         const data = JSON.parse(String(reader.result || "{}"));
         if (!Array.isArray(data.cards) || !Array.isArray(data.vouchers)) throw new Error("Invalid backup");
-        const cardIds = new Set(state.cards.map(x => x.id));
-        const voucherIds = new Set(state.vouchers.map(x => x.id));
-        state.cards.push(...data.cards.filter(x => x && x.id && !cardIds.has(x.id)));
-        state.vouchers.push(...data.vouchers.filter(x => x && x.id && !voucherIds.has(x.id)));
-        persist(); render();
-        notify("Backup restored. Existing records were kept.");
-      } catch {
-        notify("That file is not a valid RuPay Benefits backup.");
-      }
+        ["cards","vouchers","variants","holders","benefitUsages"].forEach(key => {
+          const incoming = Array.isArray(data[key]) ? data[key] : [];
+          const existing = new Set(state[key].map(x => x.id));
+          state[key].push(...incoming.filter(x => x && x.id && !existing.has(x.id)));
+        });
+        persist(); render(); notify("Backup restored. Existing records were kept.");
+      } catch { notify("That file is not a valid RuPay Benefits backup."); }
       $("#importFile").value = "";
     };
     reader.readAsText(file);
+  }
+  async function copyText(value) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(value);
+      else {
+        const input = document.createElement("textarea");
+        input.value = value; input.style.position = "fixed"; input.style.opacity = "0";
+        document.body.appendChild(input); input.select();
+        const ok = document.execCommand("copy"); input.remove();
+        if (!ok) throw new Error("copy failed");
+      }
+      notify("Copied to clipboard.");
+    } catch { notify("Copy was blocked. Select the code manually."); }
   }
 
   document.addEventListener("click", event => {
@@ -369,44 +657,79 @@
     if (viewButton) { event.preventDefault(); openView(viewButton.dataset.view); return; }
     const button = event.target.closest("[data-action]");
     if (!button) return;
-    const action = button.dataset.action;
-    const id = button.dataset.id;
-    if (action === "add-voucher") showAddVoucher();
-    if (action === "add-card") showAddCard();
-    if (action === "close-modal") closeModal();
-    if (action === "submit-voucher") {
-      event.preventDefault();
-      const form = $("#voucherForm");
-      if (form?.reportValidity()) addVoucherBatch(form);
+    const action = button.dataset.action, id = button.dataset.id;
+    if (action === "add-variant") showVariantForm();
+    if (action === "edit-variant") showVariantForm(id);
+    if (action === "delete-variant") deleteVariant(id);
+    if (action === "add-benefit-row") addBenefitEditorRow();
+    if (action === "remove-benefit-row") {
+      const rows = $$("[data-benefit-row]");
+      if (rows.length <= 1) return notify("Keep at least one benefit row, or leave its name blank.");
+      button.closest("[data-benefit-row]")?.remove();
     }
+    if (action === "submit-variant") {
+      event.preventDefault();
+      const form = $("#variantForm");
+      if (form?.reportValidity()) saveVariant(form, id || "");
+    }
+    if (action === "add-holder") showHolderForm();
+    if (action === "edit-holder") showHolderForm(id);
+    if (action === "submit-holder") {
+      event.preventDefault();
+      const form = $("#holderForm");
+      if (form?.reportValidity()) saveHolder(form, id || "");
+    }
+    if (action === "delete-holder") {
+      const holder = getHolder(id);
+      if (holder && window.confirm("Delete " + holder.name + "? Linked cards and vouchers will be kept but detached from this cardholder.")) {
+        state.holders = state.holders.filter(h => h.id !== id);
+        state.cards.forEach(c => { if (c.holderId === id) c.holderId = null; });
+        state.vouchers.forEach(v => { if (v.holderId === id) v.holderId = null; });
+        persist(); render(); notify("Cardholder deleted.");
+      }
+    }
+    if (action === "add-card") showCardForm();
+    if (action === "edit-card") showCardForm(id);
     if (action === "submit-card") {
       event.preventDefault();
       const form = $("#cardForm");
-      if (form?.reportValidity()) addCard(form);
+      if (form?.reportValidity()) saveCard(form, id || "");
+    }
+    if (action === "delete-card") deleteCard(id);
+    if (action === "card-benefits") {
+      const card = getCard(id);
+      if (card) { openView("benefits"); $("#benefitCardFilter").value = id; renderBenefits(); }
+    }
+    if (action === "log-benefit") showBenefitUseForm(button.dataset.cardId, button.dataset.benefitId);
+    if (action === "submit-benefit-use") {
+      event.preventDefault();
+      const form = $("#benefitUseForm");
+      if (form?.reportValidity()) submitBenefitUse(form, button.dataset.cardId, button.dataset.benefitId);
+    }
+    if (action === "benefit-history") showBenefitHistory(button.dataset.cardId, button.dataset.benefitId);
+    if (action === "delete-usage") deleteUsage(id);
+    if (action === "add-voucher") showVoucherForm();
+    if (action === "edit-voucher") showVoucherForm(id);
+    if (action === "submit-voucher") {
+      event.preventDefault();
+      const form = $("#voucherForm");
+      if (form?.reportValidity()) addVoucherBatch(form, id || "");
     }
     if (action === "voucher-detail") showVoucherDetail(id);
+    if (action === "close-modal") closeModal();
     if (action === "copy-code") {
-      const v = state.vouchers.find(x=>x.id===id);
+      const v = state.vouchers.find(x => x.id === id);
       if (v) copyText(v.code);
     }
-    if (action === "set-status") changeStatus(id, button.dataset.status);
     if (action === "delete-voucher") {
-      const v = state.vouchers.find(x=>x.id===id);
+      const v = state.vouchers.find(x => x.id === id);
       if (v && window.confirm("Delete voucher " + v.code + "? This cannot be undone.")) {
-        state.vouchers = state.vouchers.filter(x=>x.id!==id);
+        state.vouchers = state.vouchers.filter(x => x.id !== id);
         selectedIds.delete(id); persist(); closeModal(); render(); notify("Voucher deleted.");
       }
     }
-    if (action === "delete-card") {
-      const card = state.cards.find(x=>x.id===id);
-      if (card && window.confirm("Delete " + card.name + "? Linked vouchers will be kept, but their card link will be cleared.")) {
-        state.cards = state.cards.filter(x=>x.id!==id);
-        state.vouchers.forEach(v=>{ if(v.cardId===id){v.cardId=null;v.cardName="";} });
-        persist(); render(); notify("Card deleted.");
-      }
-    }
     if (action === "copy-selected") {
-      const codes = state.vouchers.filter(v=>selectedIds.has(v.id)).map(v=>v.code);
+      const codes = state.vouchers.filter(v => selectedIds.has(v.id)).map(v => v.code);
       if (codes.length) copyText(codes.join("\n"));
     }
     if (action === "clear-selection") { selectedIds.clear(); renderVouchers(); }
@@ -422,34 +745,26 @@
     if (event.target.id === "selectVisible") {
       $$(".voucher-check").forEach(box => {
         box.checked = event.target.checked;
-        if (box.checked) selectedIds.add(box.dataset.id);
-        else selectedIds.delete(box.dataset.id);
+        if (box.checked) selectedIds.add(box.dataset.id); else selectedIds.delete(box.dataset.id);
       });
       $("#bulkActions").classList.toggle("show", selectedIds.size > 0);
       $("#selectedCount").textContent = selectedIds.size + " selected";
     }
     if (event.target.id === "importFile" && event.target.files?.[0]) importBackup(event.target.files[0]);
+    if (event.target.id === "benefitCardFilter" || event.target.id === "benefitCycleFilter") renderBenefits();
   });
   ["voucherSearch","brandFilter","sourceFilter","statusFilter"].forEach(id => {
     const el = $("#" + id);
-    if (el) {
-      el.addEventListener(id === "voucherSearch" ? "input" : "change", () => {
-        selectedIds.clear(); renderVouchers();
-      });
-    }
+    if (el) el.addEventListener(id === "voucherSearch" ? "input" : "change", () => { selectedIds.clear(); renderVouchers(); });
   });
-  $("#modal").addEventListener("click", event => {
-    if (event.target.id === "modal") closeModal();
-  });
+  $("#modal").addEventListener("click", event => { if (event.target.id === "modal") closeModal(); });
   document.addEventListener("keydown", event => { if (event.key === "Escape") closeModal(); });
 
   function setAuthMessage(message, kind = "") {
     const el = $("#authMessage");
     if (el) { el.textContent = message; el.className = "auth-message " + kind; }
   }
-  function showAuthGate(show) {
-    $("#authGate")?.classList.toggle("visible", show);
-  }
+  function showAuthGate(show) { $("#authGate")?.classList.toggle("visible", show); }
   function firebaseConfigured() {
     const c = window.RUPAY_FIREBASE_CONFIG || {};
     return c.apiKey && !c.apiKey.startsWith("PASTE_") && c.projectId && c.projectId !== "YOUR_PROJECT_ID" && c.appId && !c.appId.startsWith("PASTE_");
@@ -457,12 +772,12 @@
   async function startFirebase() {
     if (!firebaseConfigured()) {
       showAuthGate(true);
-      setAuthMessage("Firebase configuration is missing or incomplete. Check that firebase-config.js contains apiKey, authDomain, projectId and appId, then reload.", "error");
+      setAuthMessage("Firebase configuration is missing or incomplete. Check firebase-config.js and reload.", "error");
       return;
     }
     if (!window.firebase || typeof window.firebase.initializeApp !== "function") {
       showAuthGate(true);
-      setAuthMessage("Firebase SDK did not load. Check your internet connection or content blocker, then reload. Your Firebase configuration is present.", "error");
+      setAuthMessage("Firebase SDK did not load. Check the internet connection or content blocker, then reload.", "error");
       return;
     }
     try {
@@ -470,8 +785,7 @@
       const auth = firebase.auth();
       $("#authForm").addEventListener("submit", async event => {
         event.preventDefault();
-        const email = $("#authEmail").value.trim();
-        const password = $("#authPassword").value;
+        const email = $("#authEmail").value.trim(), password = $("#authPassword").value;
         $("#authSubmit").disabled = true;
         try {
           if (creatingAccount) await auth.createUserWithEmailAndPassword(email, password);
@@ -484,37 +798,37 @@
         $("#authSubmit").textContent = creatingAccount ? "Create account" : "Sign in";
         $("#authToggle").textContent = creatingAccount ? "Already have an account? Sign in" : "New here? Create an account";
         $("#authPassword").autocomplete = creatingAccount ? "new-password" : "current-password";
-        setAuthMessage(creatingAccount ? "Use an email address and a strong password (at least 8 characters)." : "Sign in to open your private workspace.");
+        setAuthMessage(creatingAccount ? "Use an email address and strong password (at least 8 characters)." : "Sign in to open your private workspace.");
       });
       $("#signOutButton").addEventListener("click", () => auth.signOut());
       auth.onAuthStateChanged(async user => {
         if (!user) {
-          cloudReady = false;
-          showAuthGate(true);
+          cloudReady = false; showAuthGate(true);
           $("#signedInEmail").textContent = "Signed out";
           return;
         }
         showAuthGate(false);
-        setAuthMessage("Signed in.", "success");
         $("#signedInEmail").textContent = user.email || "Account connected";
         try {
           const ref = firebase.firestore().doc("users/" + user.uid + "/workspace/main");
           const snap = await ref.get();
-          if (snap.exists) {
-            const data = snap.data();
-            state = { cards: Array.isArray(data.cards) ? data.cards : [], vouchers: Array.isArray(data.vouchers) ? data.vouchers : [] };
-          } else {
-            // First login migrates this browser's existing local workspace to the new account.
-            await ref.set({ cards: state.cards, vouchers: state.vouchers, updatedAt: new Date().toISOString() });
+          let migrated = false;
+          if (snap.exists) migrated = normalizeState(snap.data());
+          else {
+            normalizeState(loadState());
+            migrated = migrateLegacyCards();
           }
           cloudReady = true;
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
           selectedIds.clear();
           render();
           openView(activeView);
+          if (!snap.exists || migrated) persist();
+          const sync = $("#syncStatus");
+          if (sync) sync.textContent = "Cloud sync connected · " + user.email;
+          setAuthMessage("Signed in.", "success");
         } catch (error) {
-          cloudReady = false;
-          showAuthGate(true);
+          cloudReady = false; showAuthGate(true);
           setAuthMessage("Could not load your cloud workspace: " + (error.message || "Check Firestore setup and rules."), "error");
         }
       });
