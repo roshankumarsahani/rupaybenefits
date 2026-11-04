@@ -313,7 +313,7 @@
     );
     if (!rows.length) return notify("No cards found for this benefit.");
     const name = rows[0].benefit.name || "Benefit";
-    modal("Cards using " + name, '<p class="form-note">This separate popup shows every card linked to this benefit. Choose a card to log usage or view its history, or close the popup to return to the tracker.</p><div class="benefit-card-list">' +
+    modal("Cards using " + name, '<div class="benefit-card-list">' +
       rows.map(benefitCardMarkup).join("") + '</div>',
       '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Close</button></div>');
   }
