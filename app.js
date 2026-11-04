@@ -301,7 +301,7 @@
         '<div class="card-chip">▦</div><h2>' + esc(card.bank || "Bank not set") + '</h2><p>' + esc(variant?.name || "Legacy / unassigned variant") + '</p>' + (card.name && card.name !== variant?.name ? '<p class="card-nickname">' + esc(card.name) + '</p>' : '') +
         '<div class="card-number">' + (card.last4 ? "•••• •••• •••• " + esc(card.last4) : "Last four digits not added") + '</div>' +
         '<div class="card-foot"><span>' + benefits.length + ' benefits</span><span>' + used + '/' + active + ' limits exhausted</span></div>' +
-        '<div class="card-actions"><button class="button secondary small" data-action="edit-card" data-id="' + esc(card.id) + '">Edit card</button><button class="button quiet small" data-action="delete-card" data-id="' + esc(card.id) + '">Delete</button><button class="button quiet small" data-action="card-benefits" data-id="' + esc(card.id) + '">Benefits ↗</button></div></article>';
+        '<div class="card-actions"><button class="button secondary small" data-action="edit-card" data-id="' + esc(card.id) + '">Edit card</button><button class="button quiet small" data-action="card-benefits" data-id="' + esc(card.id) + '">Benefits ↗</button></div></article>';
     }).join("") + '</div>';
   }
   function renderBenefits() {
@@ -480,7 +480,7 @@
       '<div class="field"><label>Card nickname</label><input name="name" value="' + esc(card?.name || "") + '" placeholder="Optional e.g. Personal card"></div>' +
       '<div class="field"><label>Last 4 digits</label><input name="last4" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" value="' + esc(card?.last4 || "") + '" placeholder="Optional"></div>' +
       '</div></form>',
-      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
+      '<div class="modal-footer">' + (card ? '<button class="button danger" data-action="delete-card" data-id="' + esc(card.id) + '">Delete card</button>' : '') + '<button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
     $("#cardBank").addEventListener("change", () => {
       const isNew = $("#cardBank").value === "__new__";
       $("#newBankField").style.display = isNew ? "grid" : "none";
