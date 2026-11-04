@@ -413,11 +413,12 @@
   function renderBenefitCatalog() {
     const root = $("#benefitCatalogContent");
     if (!root) return;
-    root.innerHTML = state.benefitCatalog.length ? '<div class="catalog-grid">' + state.benefitCatalog.map(item => {
+    root.innerHTML = state.benefitCatalog.length ? '<div class="variant-grid">' + state.benefitCatalog.map(item => {
       const uses = state.variants.filter(v => (v.benefits || []).some(b => b.catalogId === item.id)).length;
-      return '<article class="panel catalog-card"><div><span class="category-pill">' + esc(item.category || "Other") + '</span><h2>' + esc(item.name) + '</h2>' +
-        (item.description ? '<p>' + esc(item.description) + '</p>' : '') +
-        '<small class="muted">Used in ' + uses + ' card variants</small></div><div class="card-actions"><button class="button secondary small" data-action="edit-catalog" data-id="' + esc(item.id) + '">Edit</button><button class="button quiet small" data-action="delete-catalog" data-id="' + esc(item.id) + '">Delete</button></div></article>';
+      return '<article class="panel variant-card benefit-catalog-card"><div class="variant-head"><div><span class="card-network">' + esc(item.category || "Other") + '</span><h2>' + esc(item.name) + '</h2>' +
+        (item.description ? '<p class="variant-note">' + esc(item.description) + '</p>' : '') +
+        '</div><span class="count-pill">' + uses + ' variants</span></div>' +
+        '<div class="card-actions"><button class="button secondary small" data-action="edit-catalog" data-id="' + esc(item.id) + '">Edit</button><button class="button quiet small" data-action="delete-catalog" data-id="' + esc(item.id) + '">Delete</button></div></article>';
     }).join("") + '</div>' : '<div class="panel">' + empty("Your Benefits List is empty", "Add benefits here once. You can then select them in as many card variants as needed, with a separate cycle and limit for each variant.", "Add first benefit", "add-catalog") + '</div>';
   }
   function showVariantForm(id) {
