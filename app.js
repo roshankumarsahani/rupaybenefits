@@ -38,6 +38,10 @@
   }
   function dateLabel(value) {
     if (!value) return "Not set";
+    if (/^\\d{4}-\\d{2}$/.test(String(value))) {
+      const date = new Date(value + "-01T00:00:00");
+      return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { month:"short", year:"numeric" });
+    }
     const date = new Date(value + "T00:00:00");
     return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
   }
@@ -93,7 +97,7 @@
   function migrateLegacyCards() {
     let changed = false;
     state.cards.forEach(card => {
-      if (card.variantId) return;
+      if (card.variantId && state.variants.some(v => v.id === card.variantId)) return;
       const oldBenefits = Array.isArray(card.benefits) ? card.benefits : [];
       const legacyVariant = {
         id: "legacy-" + card.id,
@@ -113,11 +117,9 @@
         })),
         createdAt: card.createdDate || new Date().toISOString()
       };
-      if (oldBenefits.length) {
-        state.variants.push(legacyVariant);
-        card.variantId = legacyVariant.id;
-        changed = true;
-      }
+      state.variants.push(legacyVariant);
+      card.variantId = legacyVariant.id;
+      changed = true;
     });
     return changed;
   }
@@ -356,6 +358,7 @@
     const row = document.createElement("div");
     row.className = "benefit-editor-row";
     row.dataset.benefitRow = "1";
+    row.dataset.benefitId = b.id || "";
     row.innerHTML = '<div class="field"><label>Benefit name *</label><input data-field="name" required maxlength="90" placeholder="e.g. Domestic lounge access" value="' + esc(b.name || "") + '"></div>' +
       '<div class="field"><label>Category</label><select data-field="category">' + ["Lounge","Travel","Dining","Movies","Shopping","Fuel","Wellness","Other"].map(x => '<option ' + ((b.category || "Lounge") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
       '<div class="field"><label>Reset cycle</label><select data-field="cycle">' + ["Monthly","Quarterly","Semi-annual","Annual","One-time","Manual"].map(x => '<option ' + ((b.cycle || "Quarterly") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
@@ -438,7 +441,7 @@
     $("#familyCardField")?.classList.toggle("show", source === "family");
     $("#supplierFields")?.classList.toggle("show", source === "purchased");
     $("#supplierPhoneField")?.classList.toggle("show", source === "purchased");
-    $("#holderForm")?.toggleAttribute("required", source === "family");
+    $("#familyFields select")?.toggleAttribute("required", source === "family");
     $("#supplierFields input")?.toggleAttribute("required", source === "purchased");
     $("#supplierPhoneField input")?.toggleAttribute("required", source === "purchased");
   }
