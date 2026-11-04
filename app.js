@@ -483,7 +483,7 @@
       '<div class="field"><label>Card variant *</label><select name="variantId" required>' + optionList(variantOptions, card?.variantId || "", "Choose a configured variant") + '</select></div>' +
       '<div class="field"><label>Cardholder</label><select name="holderId">' + optionList(holderOptions, card?.holderId || "", "Self / primary account") + '</select></div>' +
       '<div class="field"><label>Card nickname</label><input name="name" value="' + esc(card?.name || "") + '" placeholder="Optional e.g. Personal card"></div>' +
-      '<div class="field"><label>Last 5 digits</label><input type="text" name="last5" inputmode="numeric" maxlength="5" autocomplete="off" oninput="this.value=this.value.replace(/\\D/g, &quot;&quot;).slice(0,5)" value="' + esc(card?.last5 || (card?.last4 ? card.last4.slice(-4) : "")) + '" placeholder="e.g. 00000"></div>' +
+      '<div class="field full"><label>Last 5 digits' + (card ? '' : ' (one per line)') + '</label><textarea name="last5" inputmode="numeric" rows="3" maxlength="' + (card ? '5' : '500') + '" placeholder="' + (card ? 'e.g. 12345' : '12345&#10;67890&#10;54321') + '">' + esc(card?.last5 || '') + '</textarea>' + (card ? '' : '<small class="muted">Enter one five-digit card number per line. Bank, variant and cardholder will be shared by all cards.</small>') + '</div>' +
       '</div></form>',
       '<div class="modal-footer">' + (card ? '<button class="button danger" data-action="delete-card" data-id="' + esc(card.id) + '">Delete card</button>' : '') + '<button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
     $("#cardBank").addEventListener("change", () => {
@@ -645,20 +645,31 @@
     const data = new FormData(form);
     const variant = getVariant(String(data.get("variantId") || ""));
     if (!variant) return notify("Choose a valid card variant.");
-    const last5 = String(data.get("last5") || "").trim();
-    if (last5 && !/^\d{5}$/.test(last5)) return notify("Enter exactly five digits.");
+    const digits = String(data.get("last5") || "").split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    if (digits.some(x => !/^\d{5}$/.test(x))) return notify("Enter exactly five digits on each line.");
+    if (id && digits.length > 1) return notify("Edit one card at a time.");
     const bankChoice = String(data.get("bankChoice") || "");
     const bank = bankChoice === "__new__" ? String(data.get("newBank") || "").trim() : bankChoice.trim();
     if (!bank) return notify("Choose or enter the bank name.");
     const old = id ? getCard(id) : null;
-    const record = {
-      id:old?.id || uid(), variantId:variant.id, name:String(data.get("name") || "").trim() || variant.name,
-      bank, network:variant.network || "RuPay", holderId:String(data.get("holderId") || "") || null,
-      last5, createdDate:old?.createdDate || todayISO(), createdAt:old?.createdAt || new Date().toISOString()
-    };
-    if (old) state.cards = state.cards.map(c => c.id === id ? record : c);
-    else state.cards.push(record);
-    persist(); closeModal(); render(); notify(old ? "Card updated." : "Card added.");
+    const holderId = String(data.get("holderId") || "") || null;
+    const name = String(data.get("name") || "").trim() || variant.name;
+    if (old) {
+      const record = {
+        ...old, variantId:variant.id, name, bank, network:variant.network || "RuPay", holderId,
+        last5:digits[0] || "", createdDate:old.createdDate || todayISO(), createdAt:old.createdAt || new Date().toISOString()
+      };
+      state.cards = state.cards.map(card => card.id === id ? record : card);
+      persist(); closeModal(); render(); notify("Card updated.");
+      return;
+    }
+    if (!digits.length) return notify("Enter at least one five-digit card number.");
+    const now = new Date().toISOString();
+    digits.forEach(last5 => state.cards.push({
+      id:uid(), variantId:variant.id, name, bank, network:variant.network || "RuPay", holderId,
+      last5, createdDate:todayISO(), createdAt:now
+    }));
+    persist(); closeModal(); render(); notify(digits.length + (digits.length === 1 ? " card added." : " cards added."));
   }
   function addVoucherBatch(form, id) {
     const data = new FormData(form);
