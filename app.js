@@ -209,7 +209,22 @@
     if (cycle === "One-time") return "lifetime";
     return "all recorded";
   }
+  function isOttBenefit(benefit) {
+    return String(benefit?.category || "").trim().toLowerCase() === "ott";
+  }
+  function benefitLimit(benefit) {
+    return isOttBenefit(benefit) ? 1 : (Number(benefit?.limit) || 0);
+  }
   function benefitUsed(cardId, benefit, dateValue) {
+    if (isOttBenefit(benefit)) {
+      const year = String(dateValue || todayISO()).slice(0, 4);
+      const ottIds = new Set(state.variants.flatMap(v => (v.benefits || [])
+        .filter(b => isOttBenefit(b)).map(b => b.id)));
+      return state.benefitUsages.filter(u =>
+        u.cardId === cardId && ottIds.has(u.benefitId) &&
+        String(u.usedAt || "").slice(0, 4) === year
+      ).reduce((sum, u) => sum + (Number(u.quantity) || 1), 0);
+    }
     const key = periodKey(benefit.cycle || "Manual", dateValue || todayISO());
     return state.benefitUsages.filter(u =>
       u.cardId === cardId && u.benefitId === benefit.id &&
@@ -226,8 +241,8 @@
   }
   function renderDashboard() {
     const benefits = getBenefitRows();
-    const limited = benefits.filter(x => Number(x.benefit.limit) > 0);
-    const remaining = limited.reduce((n, x) => n + Math.max(0, Number(x.benefit.limit) - benefitUsed(x.card.id, x.benefit)), 0);
+    const limited = benefits.filter(x => benefitLimit(x.benefit) > 0);
+    const remaining = limited.reduce((n, x) => n + Math.max(0, benefitLimit(x.benefit) - benefitUsed(x.card.id, x.benefit)), 0);
     const expiring = state.vouchers.filter(v => v.status === "available" && v.expiryDate && daysUntil(v.expiryDate) >= 0 && daysUntil(v.expiryDate) <= 30)
       .sort((a,b) => a.expiryDate.localeCompare(b.expiryDate)).slice(0, 5);
     const stats = [
@@ -240,7 +255,7 @@
       '<article class="stat-card"><div class="stat-top">' + esc(s[0]) + '<span class="stat-icon">' + s[3] + '</span></div><div class="stat-value">' + s[1] + '</div><div class="stat-foot">' + esc(s[2]) + '</div></article>'
     ).join("");
     $("#dashboardBenefits").innerHTML = benefits.length ? '<div class="dashboard-benefit-grid">' + benefits.slice(0, 8).map(x => {
-      const limit = Number(x.benefit.limit) || 0, used = benefitUsed(x.card.id, x.benefit);
+      const limit = benefitLimit(x.benefit), used = benefitUsed(x.card.id, x.benefit);
       const left = limit ? Math.max(0, limit - used) : null;
       return '<div class="mini-benefit"><div><strong>' + esc(x.benefit.name) + '</strong><small>' + esc(cardLabel(x.card)) + '</small></div><b>' + (limit ? left + " left" : used + " used") + '</b></div>';
     }).join("") + '</div>' + (benefits.length > 8 ? '<button class="text-button" data-view="benefits">See all ' + benefits.length + ' benefit records ↗</button>' : '') :
@@ -299,7 +314,7 @@
     const cycleFilter = $("#benefitCycleFilter").value;
     const rows = getBenefitRows().filter(x => (!cardFilter.value || x.card.id === cardFilter.value) && (!cycleFilter || x.benefit.cycle === cycleFilter));
     root.innerHTML = rows.length ? '<div class="benefit-grid">' + rows.map(x => {
-      const limit = Number(x.benefit.limit) || 0;
+      const limit = benefitLimit(x.benefit);
       const used = benefitUsed(x.card.id, x.benefit);
       const left = limit ? Math.max(0, limit - used) : null;
       const pct = limit ? Math.min(100, Math.round(used / limit * 100)) : 0;
@@ -544,11 +559,11 @@
     const card = getCard(cardId), variant = getCardVariant(card);
     const benefit = benefitList(variant).find(b => b.id === benefitId);
     if (!card || !benefit) return;
-    const limit = Number(benefit.limit) || 0;
+    const limit = benefitLimit(benefit);
     const used = benefitUsed(cardId, benefit);
     const left = limit ? Math.max(0, limit - used) : null;
     modal("Log benefit usage",
-      '<p class="form-note"><strong>' + esc(benefit.name) + '</strong><br>' + esc(cardLabel(card)) + ' · ' + esc(benefit.cycle) + ' cycle. ' + (limit ? left + ' ' + esc(benefit.unit || "uses") + ' remaining in this cycle.' : 'No usage cap is configured.') + '</p>' +
+      '<p class="form-note"><strong>' + esc(benefit.name) + '</strong><br>' + esc(cardLabel(card)) + ' · ' + esc(benefit.cycle) + ' cycle. ' + (isOttBenefit(benefit) ? (used ? 'An OTT benefit has already been claimed on this card for ' + esc(String(todayISO()).slice(0,4)) + '. No OTT benefit can be claimed again this year.' : 'One OTT benefit per card is allowed each calendar year. Claiming any OTT benefit blocks all other OTT benefits on this card until next year.') : (limit ? left + ' ' + esc(benefit.unit || "uses") + ' remaining in this cycle.' : 'No usage cap is configured.')) + '</p>' +
       '<form id="benefitUseForm"><div class="form-grid"><div class="field"><label>Usage date *</label><input name="usedAt" type="date" required value="' + todayISO() + '"></div>' +
       '<div class="field"><label>Quantity (' + esc(benefit.unit || "uses") + ') *</label><input name="quantity" type="number" min="1" step="1" value="1" required></div>' +
       '<div class="field"><label>Amount (₹, optional)</label><input name="amount" type="number" min="0" step="1" placeholder="Optional"></div>' +
@@ -678,7 +693,7 @@
     const quantity = Number(data.get("quantity")) || 0;
     const card = getCard(cardId), benefit = benefitList(getCardVariant(card)).find(b => b.id === benefitId);
     if (!benefit || !quantity || quantity < 1) return notify("Enter a valid usage quantity.");
-    const limit = Number(benefit.limit) || 0;
+    const limit = benefitLimit(benefit);
     const used = benefitUsed(cardId, benefit, usedAt);
     if (limit && used + quantity > limit) return notify("This usage would exceed the " + benefit.cycle + " limit of " + limit + ".");
     state.benefitUsages.push({
