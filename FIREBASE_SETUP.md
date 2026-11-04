@@ -31,7 +31,7 @@ The current rules permit only the signed-in user to read/write their own workspa
 - The workspace is still stored at `users/{uid}/workspace/main`.
 - Existing `cards` and `vouchers` are retained when the new app loads.
 - Existing cards with old benefit-note text are converted to individual legacy variants so the note text remains available. Their cycle is set to Manual and the usage cap is left unlimited because the old notes did not define reliable limits.
-- Create or edit a card variant first. Then add cards and assign each card to its variant and optional family cardholder.
+- Create or edit a card variant first. Then add cards and assign each card to its variant and optional cardholder.
 - Each card gets its own usage counter for the benefits defined by its assigned variant.
 - Export a JSON backup from Data & settings before bulk imports or major changes.
 
@@ -40,7 +40,7 @@ The current rules permit only the signed-in user to read/write their own workspa
 - `cards`: card records and variant assignments
 - `vouchers`: voucher records and supplier details
 - `variants`: reusable card benefit definitions
-- `holders`: family/cardholder records
+- `holders`: cardholder records
 - `benefitUsages`: card-specific benefit usage entries
 - `updatedAt`: last cloud save timestamp
 
