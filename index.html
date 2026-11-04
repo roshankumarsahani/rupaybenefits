@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#101a32">
   <title>RuPay Benefits — Card & Voucher Manager</title>
   <meta name="description" content="A private workspace to manage card variants, cardholders, benefits and voucher inventory.">
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script defer src="firebase-config.js?v=3"></script>
-  <script defer src="app.js?v=6"></script>
+  <script defer src="app.js?v=7"></script>
 </head>
 <body>
   <section id="authGate" class="auth-gate">
@@ -38,6 +38,7 @@
       <nav class="side-nav" aria-label="Main navigation">
         <button class="nav-link active" data-view="dashboard"><span>◫</span> Overview</button>
         <button class="nav-link" data-view="variants"><span>▦</span> Card variants</button>
+        <button class="nav-link" data-view="benefitCatalog"><span>✧</span> Benefits List</button>
         <button class="nav-link" data-view="cards"><span>▤</span> My cards</button>
         <button class="nav-link" data-view="benefits"><span>✦</span> Benefit tracker</button>
         <button class="nav-link" data-view="vouchers"><span>▣</span> Voucher inventory</button>
@@ -72,6 +73,11 @@
         <div class="page-heading"><div><p class="eyebrow">REUSABLE CARD BLUEPRINTS</p><h1>Card variants</h1><p class="subheading">Define card benefits once, then assign the variant to each cardholder's card.</p></div><button class="button primary" data-action="add-variant">＋ Add variant</button></div>
         <div class="notice">A variant stores the benefit catalogue and its cycle limits. Updating a variant updates the benefit rules used by every linked card.</div>
         <div id="variantsContent"></div>
+      </section>
+
+      <section class="view" id="view-benefitCatalog">
+        <div class="page-heading"><div><p class="eyebrow">REUSABLE BENEFIT LIBRARY</p><h1>Benefits List</h1><p class="subheading">Create each benefit once, then select it in multiple card variants. Set cycles and limits separately for each variant.</p></div><button class="button primary" data-action="add-catalog">＋ Add benefit</button></div>
+        <div id="benefitCatalogContent"></div>
       </section>
 
       <section class="view" id="view-cards">
