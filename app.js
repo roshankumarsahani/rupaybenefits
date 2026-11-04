@@ -478,7 +478,7 @@
       '<div class="field"><label>Card variant *</label><select name="variantId" required>' + optionList(variantOptions, card?.variantId || "", "Choose a configured variant") + '</select></div>' +
       '<div class="field"><label>Cardholder</label><select name="holderId">' + optionList(holderOptions, card?.holderId || "", "Self / primary account") + '</select></div>' +
       '<div class="field"><label>Card nickname</label><input name="name" value="' + esc(card?.name || "") + '" placeholder="Optional e.g. Personal card"></div>' +
-      '<div class="field"><label>Last 5 digits</label><input type="text" name="last5" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" autocomplete="off" value="' + esc(card?.last5 || (card?.last4 ? card.last4.slice(-4) : "")) + '" placeholder="e.g. 00000"></div>' +
+      '<div class="field"><label>Last 5 digits</label><input type="text" name="last5" inputmode="numeric" maxlength="5" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,5)" value="' + esc(card?.last5 || (card?.last4 ? card.last4.slice(-4) : "")) + '" placeholder="e.g. 00000"></div>' +
       '</div></form>',
       '<div class="modal-footer">' + (card ? '<button class="button danger" data-action="delete-card" data-id="' + esc(card.id) + '">Delete card</button>' : '') + '<button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
     $("#cardBank").addEventListener("change", () => {
