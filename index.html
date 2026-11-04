@@ -7,9 +7,19 @@
   <title>RuPay Benefits — Card & Voucher Manager</title>
   <meta name="description" content="A private workspace to manage credit-card benefits and voucher inventory.">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script defer src="firebase-config.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
+  <section id="authGate" class="auth-gate">
+    <div class="auth-card"><div class="brand-mark">₹</div><p class="eyebrow">PRIVATE CLOUD WORKSPACE</p><h1>Welcome to RuPay Benefits</h1><p class="subheading">Sign in to securely sync your cards and vouchers across devices.</p>
+      <form id="authForm"><label class="auth-label">Email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com"></label><label class="auth-label">Password<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></label><button class="button primary" id="authSubmit" type="submit">Sign in</button></form>
+      <button class="auth-switch" id="authToggle" type="button">New here? Create an account</button><p id="authMessage" class="auth-message">Connect your Firebase project to get started.</p>
+    </div>
+  </section>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="#" aria-label="RuPay Benefits home">
@@ -24,7 +34,8 @@
         <button class="nav-link" data-view="suppliers"><span>♧</span> Suppliers</button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="storage-note"><span class="storage-dot"></span><div><strong>Local workspace</strong><small>Saved on this device</small></div></div>
+        <div class="storage-note"><span class="storage-dot"></span><div><strong>Firebase cloud</strong><small id="signedInEmail">Syncing workspace</small></div></div>
+        <button class="nav-link" id="signOutButton" type="button"><span>↪</span> Sign out</button>
         <button class="nav-link" data-view="settings"><span>⚙</span> Data & settings</button>
       </div>
     </aside>
@@ -82,11 +93,11 @@
       </section>
 
       <section class="view" id="view-settings">
-        <div class="page-heading"><div><p class="eyebrow">YOUR DATA</p><h1>Data & settings</h1><p class="subheading">Back up this device's workspace or restore it on another device.</p></div></div>
+        <div class="page-heading"><div><p class="eyebrow">YOUR DATA</p><h1>Data & settings</h1><p class="subheading">Back up your cloud workspace or restore records from a JSON file.</p></div></div>
         <div class="settings-grid">
           <article class="panel"><span class="setting-icon">⇧</span><h2>Export a backup</h2><p>Download cards and vouchers as a JSON backup file. Keep it somewhere safe.</p><button class="button primary" data-action="export">Download backup</button></article>
           <article class="panel"><span class="setting-icon">⇩</span><h2>Restore a backup</h2><p>Import a previous backup. Imported records are added to this device's workspace.</p><label class="button secondary file-button">Choose backup file<input id="importFile" type="file" accept="application/json,.json"></label></article>
-          <article class="panel warning-panel"><span class="setting-icon">ⓘ</span><h2>Storage & security</h2><p>This first version stores data in this browser's local storage. It is not yet protected by server-side login and does not sync between devices. Do not store sensitive card numbers, CVVs, passwords or banking credentials.</p><p>The Oracle Cloud PostgreSQL backend and proper account authentication are planned for the next stage.</p></article>
+          <article class="panel warning-panel"><span class="setting-icon">ⓘ</span><h2>Storage & security</h2><p>Your records are stored in your private Firebase workspace and sync across devices signed into this account. Do not store sensitive card numbers, CVVs, OTPs, passwords or banking credentials.</p><p>Export periodic JSON backups. Firebase free usage has limits; monitor usage in Google Cloud.</p></article>
         </div>
       </section>
 
