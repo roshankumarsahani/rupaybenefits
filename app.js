@@ -455,9 +455,14 @@
     return c.apiKey && !c.apiKey.startsWith("PASTE_") && c.projectId && c.projectId !== "YOUR_PROJECT_ID" && c.appId && !c.appId.startsWith("PASTE_");
   }
   async function startFirebase() {
-    if (!firebaseConfigured() || !window.firebase) {
+    if (!firebaseConfigured()) {
       showAuthGate(true);
-      setAuthMessage("Firebase setup is incomplete. Add your Web app values to firebase-config.js and enable Email/Password sign-in.", "error");
+      setAuthMessage("Firebase configuration is missing or incomplete. Check that firebase-config.js contains apiKey, authDomain, projectId and appId, then reload.", "error");
+      return;
+    }
+    if (!window.firebase || typeof window.firebase.initializeApp !== "function") {
+      showAuthGate(true);
+      setAuthMessage("Firebase SDK did not load. Check your internet connection or content blocker, then reload. Your Firebase configuration is present.", "error");
       return;
     }
     try {
