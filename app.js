@@ -161,8 +161,9 @@
       benefitUsages: Array.isArray(data.benefitUsages) ? data.benefitUsages : [],
       benefitCatalog: Array.isArray(data.benefitCatalog) ? data.benefitCatalog : []
     };
-    const migrated = migrateLegacyCards();
-    return migrateBenefitCatalog() || migrated;
+    const migratedCards = migrateLegacyCards();
+    const migratedCatalog = migrateBenefitCatalog();
+    return migratedCards || migratedCatalog;
   }
 
   const VIEW_LABELS = {
