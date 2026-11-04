@@ -483,7 +483,7 @@
       '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
     $("#cardBank").addEventListener("change", () => {
       const isNew = $("#cardBank").value === "__new__";
-      $("#newBankField").classList.toggle("show", isNew);
+      $("#newBankField").style.display = isNew ? "grid" : "none";
       $("#newBankField input").toggleAttribute("required", isNew);
     });
   }
