@@ -694,7 +694,7 @@
       try {
         const data = JSON.parse(String(reader.result || "{}"));
         if (!Array.isArray(data.cards) || !Array.isArray(data.vouchers)) throw new Error("Invalid backup");
-        ["cards","vouchers","variants","holders","benefitUsages"].forEach(key => {
+        ["cards","vouchers","variants","holders","benefitUsages","benefitCatalog"].forEach(key => {
           const incoming = Array.isArray(data[key]) ? data[key] : [];
           const existing = new Set(state[key].map(x => x.id));
           state[key].push(...incoming.filter(x => x && x.id && !existing.has(x.id)));
