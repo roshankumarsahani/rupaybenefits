@@ -45,7 +45,10 @@
     const date = new Date(value + "T00:00:00");
     return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
   }
-  function todayISO() { return new Date().toISOString().slice(0, 10); }
+  function todayISO() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
   function daysUntil(value) {
     if (!value) return Infinity;
     const target = new Date(value + "T00:00:00");
@@ -561,6 +564,7 @@
     if (source === "purchased" && (!supplierName || !supplierPhone)) return notify("Enter the seller's name and phone number.");
     const holderId = String(data.get("holderId") || "");
     const holder = getHolder(holderId);
+    if (source === "family" && !holder) return notify("Choose a family cardholder for this voucher.");
     const cardId = String(data.get("cardId") || "");
     const card = getCard(cardId);
     const common = {
