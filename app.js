@@ -4,7 +4,7 @@
   const STORAGE_KEY = "rupay-benefits-workspace-v1";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const emptyState = () => ({ cards: [], vouchers: [], variants: [], holders: [], benefitUsages: [] });
+  const emptyState = () => ({ cards: [], vouchers: [], variants: [], holders: [], benefitUsages: [], benefitCatalog: [] });
   let state = loadState();
   let cloudReady = false;
   let creatingAccount = false;
@@ -21,7 +21,8 @@
         vouchers: Array.isArray(saved.vouchers) ? saved.vouchers : [],
         variants: Array.isArray(saved.variants) ? saved.variants : [],
         holders: Array.isArray(saved.holders) ? saved.holders : [],
-        benefitUsages: Array.isArray(saved.benefitUsages) ? saved.benefitUsages : []
+        benefitUsages: Array.isArray(saved.benefitUsages) ? saved.benefitUsages : [],
+        benefitCatalog: Array.isArray(saved.benefitCatalog) ? saved.benefitCatalog : []
       };
     } catch { return emptyState(); }
   }
@@ -73,6 +74,7 @@
       variants: state.variants,
       holders: state.holders,
       benefitUsages: state.benefitUsages,
+      benefitCatalog: state.benefitCatalog,
       updatedAt: new Date().toISOString()
     };
     saveQueue = saveQueue.then(() => firebase.firestore().doc("users/" + userId + "/workspace/main").set(payload))
@@ -132,19 +134,39 @@
     });
     return changed;
   }
+  function migrateBenefitCatalog() {
+    let changed = false;
+    const findMaster = benefit => state.benefitCatalog.find(x =>
+      x.name.trim().toLowerCase() === String(benefit.name || "").trim().toLowerCase() &&
+      String(x.category || "Other").toLowerCase() === String(benefit.category || "Other").toLowerCase()
+    );
+    state.variants.forEach(variant => {
+      (variant.benefits || []).forEach(benefit => {
+        let master = benefit.catalogId ? state.benefitCatalog.find(x => x.id === benefit.catalogId) : findMaster(benefit);
+        if (!master) {
+          master = { id:uid(), name:benefit.name || "Unnamed benefit", category:benefit.category || "Other", description:benefit.description || "", createdAt:new Date().toISOString() };
+          state.benefitCatalog.push(master); changed = true;
+        }
+        if (benefit.catalogId !== master.id) { benefit.catalogId = master.id; changed = true; }
+      });
+    });
+    return changed;
+  }
   function normalizeState(data) {
     state = {
       cards: Array.isArray(data.cards) ? data.cards : [],
       vouchers: Array.isArray(data.vouchers) ? data.vouchers : [],
       variants: Array.isArray(data.variants) ? data.variants : [],
       holders: Array.isArray(data.holders) ? data.holders : [],
-      benefitUsages: Array.isArray(data.benefitUsages) ? data.benefitUsages : []
+      benefitUsages: Array.isArray(data.benefitUsages) ? data.benefitUsages : [],
+      benefitCatalog: Array.isArray(data.benefitCatalog) ? data.benefitCatalog : []
     };
-    return migrateLegacyCards();
+    const migrated = migrateLegacyCards();
+    return migrateBenefitCatalog() || migrated;
   }
 
   const VIEW_LABELS = {
-    dashboard:"Overview", variants:"Card variants", cards:"My cards", benefits:"Benefit tracker",
+    dashboard:"Overview", variants:"Card variants", cards:"My cards", benefits:"Benefit tracker", benefitCatalog:"Benefits list",
     vouchers:"Voucher inventory", family:"Cardholders", suppliers:"Suppliers", settings:"Data & settings"
   };
   function openView(view) {
@@ -161,6 +183,7 @@
     renderVariants();
     renderCards();
     renderBenefits();
+    renderBenefitCatalog();
     renderVouchers();
     renderFamily();
     renderSuppliers();
@@ -368,31 +391,51 @@
     row.className = "benefit-editor-row";
     row.dataset.benefitRow = "1";
     row.dataset.benefitId = b.id || "";
-    row.innerHTML = '<div class="field"><label>Benefit name *</label><input data-field="name" required maxlength="90" placeholder="e.g. Domestic lounge access" value="' + esc(b.name || "") + '"></div>' +
-      '<div class="field"><label>Category</label><select data-field="category">' + ["Lounge","Travel","Dining","Movies","Shopping","Fuel","Wellness","Other"].map(x => '<option ' + ((b.category || "Lounge") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
-      '<div class="field"><label>Reset cycle</label><select data-field="cycle">' + ["Monthly","Quarterly","Semi-annual","Annual","One-time","Manual"].map(x => '<option ' + ((b.cycle || "Quarterly") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+    row.innerHTML = '<div class="field full"><label>Select benefit *</label><select data-field="catalogId" required>' +
+      optionList(state.benefitCatalog.map(x => ({id:x.id,label:x.name + " · " + (x.category || "Other")})), b.catalogId || "", "Choose from Benefits List") + '</select></div>' +
+      '<div class="field"><label>Cycle for this variant</label><select data-field="cycle">' + ["Monthly","Quarterly","Semi-annual","Annual","One-time","Manual"].map(x => '<option ' + ((b.cycle || "Quarterly") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
       '<div class="field"><label>Limit per cycle</label><input data-field="limit" type="number" min="0" step="1" value="' + esc(b.limit ?? 0) + '" placeholder="0 = no cap"></div>' +
       '<div class="field"><label>Unit</label><select data-field="unit">' + ["visits","transactions","tickets","uses","₹ value"].map(x => '<option ' + ((b.unit || "visits") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
       '<div class="field"><label>Notes / conditions</label><input data-field="notes" value="' + esc(b.notes || "") + '" placeholder="Optional terms or eligibility"></div>' +
       '<button class="icon-action remove-benefit-row" type="button" data-action="remove-benefit-row" aria-label="Remove benefit">×</button>';
     root.appendChild(row);
   }
+  function showBenefitCatalogForm(id) {
+    const item = id ? state.benefitCatalog.find(x => x.id === id) : null;
+    modal(item ? "Edit benefit" : "Add benefit to list",
+      '<form id="catalogForm"><div class="form-grid">' +
+      '<div class="field"><label>Benefit name *</label><input name="name" required maxlength="90" value="' + esc(item?.name || "") + '" placeholder="e.g. Domestic lounge access"></div>' +
+      '<div class="field"><label>Category</label><select name="category">' + ["Lounge","Travel","Dining","Movies","Shopping","Fuel","Wellness","Other"].map(x => '<option ' + ((item?.category || "Other") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field full"><label>Description / standard terms</label><textarea name="description" rows="2" placeholder="Describe the benefit; variant-specific cycles and limits are set separately.">' + esc(item?.description || "") + '</textarea></div></div></form>',
+      '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-catalog" data-id="' + esc(id || "") + '">Save benefit</button></div>');
+  }
+  function renderBenefitCatalog() {
+    const root = $("#benefitCatalogContent");
+    if (!root) return;
+    root.innerHTML = state.benefitCatalog.length ? '<div class="catalog-grid">' + state.benefitCatalog.map(item => {
+      const uses = state.variants.filter(v => (v.benefits || []).some(b => b.catalogId === item.id)).length;
+      return '<article class="panel catalog-card"><div><span class="category-pill">' + esc(item.category || "Other") + '</span><h2>' + esc(item.name) + '</h2>' +
+        (item.description ? '<p>' + esc(item.description) + '</p>' : '') +
+        '<small class="muted">Used in ' + uses + ' card variants</small></div><div class="card-actions"><button class="button secondary small" data-action="edit-catalog" data-id="' + esc(item.id) + '">Edit</button><button class="button quiet small" data-action="delete-catalog" data-id="' + esc(item.id) + '">Delete</button></div></article>';
+    }).join("") + '</div>' : '<div class="panel">' + empty("Your Benefits List is empty", "Add benefits here once. You can then select them in as many card variants as needed, with a separate cycle and limit for each variant.", "Add first benefit", "add-catalog") + '</div>';
+  }
   function showVariantForm(id) {
     const variant = id ? getVariant(id) : null;
     const v = variant || {};
     const benefitRows = benefitList(v);
     modal(variant ? "Edit card variant" : "Create card variant",
-      '<p class="form-note">Add the card issuer and reusable benefits. Set a limit of 0 when there is no fixed usage cap.</p>' +
+      '<p class="form-note">Select benefits from your Benefits List. Set the cycle and usage limit separately for this card variant.</p>' +
+      (state.benefitCatalog.length ? '' : '<div class="notice">Add benefits to the Benefits List first, then return here to select them.</div>') +
       '<form id="variantForm"><div class="form-grid">' +
       '<div class="field"><label>Variant name *</label><input name="name" required value="' + esc(v.name || "") + '" placeholder="e.g. RuPay Select"></div>' +
       '<div class="field"><label>Bank / issuer *</label><input name="bank" required value="' + esc(v.bank || "") + '" placeholder="e.g. HDFC Bank"></div>' +
       '<div class="field"><label>Network</label><select name="network">' + ["RuPay","Visa","Mastercard","American Express","Other"].map(x => '<option ' + ((v.network || "RuPay") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
       '<div class="field"><label>Annual fee (₹)</label><input name="annualFee" type="number" min="0" step="1" value="' + esc(v.annualFee || 0) + '" placeholder="0"></div>' +
       '<div class="field full"><label>Variant notes</label><textarea name="notes" rows="2" placeholder="Eligibility, joining fee waiver or other terms">' + esc(v.notes || "") + '</textarea></div>' +
-      '<div class="field full"><div class="editor-heading"><div><strong>Benefits included in this variant</strong><small>Each benefit has its own cycle and usage limit.</small></div><button class="button secondary small" type="button" data-action="add-benefit-row">＋ Add benefit</button></div></div>' +
+      '<div class="field full"><div class="editor-heading"><div><strong>Select benefits for this variant</strong><small>Each selected benefit has its own cycle and limit for this variant.</small></div><button class="button secondary small" type="button" data-action="add-benefit-row" ' + (!state.benefitCatalog.length ? 'disabled' : '') + '>＋ Select benefit</button></div></div>' +
       '<div class="field full"><div id="benefitEditorRows" class="benefit-editor-list"></div></div></div></form>',
       '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-variant" data-id="' + esc(id || "") + '">Save variant</button></div>');
-    (benefitRows.length ? benefitRows : [{}]).forEach(addBenefitEditorRow);
+    benefitRows.forEach(addBenefitEditorRow);
   }
   function showHolderForm(id) {
     const holder = id ? getHolder(id) : null;
@@ -499,19 +542,29 @@
   }
 
   function readBenefitRows(form) {
-    return $$("[data-benefit-row]", form).map(row => {
+    const rows = $$("[data-benefit-row]", form).map(row => {
       const val = name => $("[data-field='" + name + "']", row)?.value?.trim() || "";
+      const catalog = state.benefitCatalog.find(x => x.id === val("catalogId"));
+      if (!catalog) return null;
       return {
-        id: row.dataset.benefitId || uid(), name:val("name"), category:val("category"),
-        cycle:val("cycle"), limit:Number(val("limit")) || 0, unit:val("unit") || "uses", notes:val("notes")
+        id:row.dataset.benefitId || uid(), catalogId:catalog.id,
+        name:catalog.name, category:catalog.category || "Other",
+        cycle:val("cycle") || "Manual", limit:Number(val("limit")) || 0,
+        unit:val("unit") || "uses", notes:val("notes")
       };
-    }).filter(b => b.name);
+    }).filter(Boolean);
+    if (new Set(rows.map(x => x.catalogId)).size !== rows.length) {
+      notify("Select each benefit only once in a variant.");
+      return null;
+    }
+    return rows;
   }
   function saveVariant(form, id) {
     const data = new FormData(form);
     const name = String(data.get("name") || "").trim(), bank = String(data.get("bank") || "").trim();
     if (!name || !bank) return notify("Enter the variant name and bank / issuer.");
     const benefits = readBenefitRows(form);
+    if (benefits === null) return;
     const old = id ? getVariant(id) : null;
     const record = {
       id: old?.id || uid(), name, bank, network:String(data.get("network") || "RuPay"),
@@ -671,6 +724,31 @@
     const button = event.target.closest("[data-action]");
     if (!button) return;
     const action = button.dataset.action, id = button.dataset.id;
+    if (action === "add-catalog") showBenefitCatalogForm();
+    if (action === "edit-catalog") showBenefitCatalogForm(id);
+    if (action === "submit-catalog") {
+      event.preventDefault();
+      const form = $("#catalogForm");
+      if (form?.reportValidity()) {
+        const data = new FormData(form), name = String(data.get("name") || "").trim();
+        const duplicate = state.benefitCatalog.find(x => x.name.toLowerCase() === name.toLowerCase() && x.id !== id);
+        if (duplicate) return notify("That benefit is already in the Benefits List.");
+        const old = id ? state.benefitCatalog.find(x => x.id === id) : null;
+        const record = { id:old?.id || uid(), name, category:String(data.get("category") || "Other"), description:String(data.get("description") || "").trim(), createdAt:old?.createdAt || new Date().toISOString() };
+        state.benefitCatalog = old ? state.benefitCatalog.map(x => x.id === id ? record : x) : [...state.benefitCatalog, record];
+        state.variants.forEach(v => (v.benefits || []).forEach(b => { if (b.catalogId === record.id) { b.name=record.name; b.category=record.category; } }));
+        persist(); closeModal(); render(); notify("Benefits List updated.");
+      }
+    }
+    if (action === "delete-catalog") {
+      const item = state.benefitCatalog.find(x => x.id === id);
+      const used = state.variants.some(v => (v.benefits || []).some(b => b.catalogId === id));
+      if (item && used) notify("This benefit is used by a card variant. Remove it from those variants first.");
+      else if (item && window.confirm("Delete " + item.name + " from the Benefits List?")) {
+        state.benefitCatalog = state.benefitCatalog.filter(x => x.id !== id);
+        persist(); render(); notify("Benefit deleted.");
+      }
+    }
     if (action === "add-variant") showVariantForm();
     if (action === "edit-variant") showVariantForm(id);
     if (action === "delete-variant") deleteVariant(id);
