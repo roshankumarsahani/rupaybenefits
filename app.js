@@ -309,6 +309,7 @@
         '<div class="card-actions"><button class="button secondary small" data-action="edit-card" data-id="' + esc(card.id) + '">Edit card</button><button class="button quiet small" data-action="card-benefits" data-id="' + esc(card.id) + '">Benefits ↗</button></div></article>';
     }).join("") + '</div>';
   }
+  let expandedBenefitKey = "";
   function renderBenefits() {
     const root = $("#benefitsContent");
     const cardFilter = $("#benefitCardFilter");
@@ -317,18 +318,30 @@
     cardFilter.value = state.cards.some(c => c.id === oldCard) ? oldCard : "";
     const cycleFilter = $("#benefitCycleFilter").value;
     const rows = getBenefitRows().filter(x => (!cardFilter.value || x.card.id === cardFilter.value) && (!cycleFilter || x.benefit.cycle === cycleFilter));
-    root.innerHTML = rows.length ? '<div class="benefit-grid">' + rows.map(x => {
-      const limit = benefitLimit(x.benefit);
-      const used = benefitUsed(x.card.id, x.benefit);
-      const left = limit ? Math.max(0, limit - used) : null;
-      const pct = limit ? Math.min(100, Math.round(used / limit * 100)) : 0;
-      const exhausted = limit > 0 && used >= limit;
-      return '<article class="panel benefit-card"><div class="benefit-card-top"><span class="category-pill">' + esc(x.benefit.category || "Other") + '</span><span class="count-pill">' + esc(x.benefit.cycle || "Manual") + '</span></div>' +
-        '<h2>' + esc(x.benefit.name) + '</h2><p class="muted">' + esc(cardLabel(x.card)) + ' · ' + esc(x.variant?.name || "") + '</p>' +
-        (limit ? '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used ' + esc(cycleCaption(x.benefit.cycle)) + '</small></div><div><strong>' + left + '</strong><small>Remaining</small></div><div><strong>' + limit + '</strong><small>Allowed</small></div></div><div class="progress-track"><div class="progress-fill" style="width:' + pct + '%"></div></div>' :
-        '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used ' + esc(cycleCaption(x.benefit.cycle)) + '</small></div><div><strong>—</strong><small>No defined cap</small></div></div>') +
-        (x.benefit.notes ? '<p class="benefit-note">' + esc(x.benefit.notes) + '</p>' : '') +
-        '<div class="benefit-card-actions"><button class="button ' + (exhausted ? 'quiet' : 'primary') + ' small" data-action="log-benefit" data-card-id="' + esc(x.card.id) + '" data-benefit-id="' + esc(x.benefit.id) + '"' + (exhausted ? ' disabled' : '') + '>＋ Log use</button><button class="button secondary small" data-action="benefit-history" data-card-id="' + esc(x.card.id) + '" data-benefit-id="' + esc(x.benefit.id) + '">History</button></div></article>';
+    const groups = new Map();
+    rows.forEach(x => {
+      const key = String(x.benefit.catalogId || x.benefit.name || x.benefit.id);
+      if (!groups.has(key)) groups.set(key, { key, name:x.benefit.name, category:x.benefit.category || "Other", rows:[] });
+      groups.get(key).rows.push(x);
+    });
+    const items = [...groups.values()].sort((a,b) => a.name.localeCompare(b.name));
+    root.innerHTML = items.length ? '<div class="benefit-grid">' + items.map(group => {
+      const usedTotal = group.rows.reduce((n,x) => n + benefitUsed(x.card.id,x.benefit),0);
+      const allowedTotal = group.rows.reduce((n,x) => n + benefitLimit(x.benefit),0);
+      const remainingTotal = group.rows.reduce((n,x) => n + (benefitLimit(x.benefit) ? Math.max(0,benefitLimit(x.benefit)-benefitUsed(x.card.id,x.benefit)) : 0),0);
+      const expanded = expandedBenefitKey === group.key;
+      const cards = expanded ? '<div class="benefit-card-list">' + group.rows.map(x => {
+        const limit = benefitLimit(x.benefit), used = benefitUsed(x.card.id,x.benefit);
+        const left = limit ? Math.max(0,limit-used) : null;
+        const exhausted = limit > 0 && used >= limit;
+        return '<article class="panel benefit-card"><div class="benefit-card-top"><span class="category-pill">' + esc(x.benefit.cycle || "Manual") + '</span><span class="count-pill">' + esc(x.variant?.name || "Card") + '</span></div>' +
+          '<h3>' + esc(cardLabel(x.card)) + '</h3>' +
+          (limit ? '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used</small></div><div><strong>' + left + '</strong><small>Remaining</small></div><div><strong>' + limit + '</strong><small>Allowed</small></div></div>' :
+          '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used</small></div><div><strong>—</strong><small>No defined cap</small></div></div>') +
+          '<div class="benefit-card-actions"><button class="button ' + (exhausted ? 'quiet' : 'primary') + ' small" data-action="log-benefit" data-card-id="' + esc(x.card.id) + '" data-benefit-id="' + esc(x.benefit.id) + '"' + (exhausted ? ' disabled' : '') + '>＋ Log use</button><button class="button secondary small" data-action="benefit-history" data-card-id="' + esc(x.card.id) + '" data-benefit-id="' + esc(x.benefit.id) + '">History</button></div></article>';
+      }).join("") + '</div>' : "";
+      return '<article class="panel benefit-card"><button class="benefit-group-toggle" data-action="toggle-benefit-group" data-key="' + esc(group.key) + '" aria-expanded="' + expanded + '"><span><span class="category-pill">' + esc(group.category) + '</span><h2>' + esc(group.name) + '</h2><small>' + group.rows.length + ' card' + (group.rows.length===1?'':'s') + ' · Tap to ' + (expanded?'hide':'view') + ' cards</small></span><span class="count-pill">' + (expanded?'Hide cards':'View cards ↗') + '</span></button>' +
+        '<div class="usage-numbers"><div><strong>' + usedTotal + '</strong><small>Total used</small></div><div><strong>' + (allowedTotal ? remainingTotal : '—') + '</strong><small>Total remaining</small></div><div><strong>' + (allowedTotal || '—') + '</strong><small>Total allowed</small></div></div>' + cards + '</article>';
     }).join("") + '</div>' : '<div class="panel">' + empty("No benefits to track", "Add a card variant with benefit definitions and assign that variant to a card.", state.variants.length ? "Add a card" : "Create a variant", state.variants.length ? "add-card" : "add-variant") + '</div>';
   }
 
@@ -871,7 +884,7 @@
       const form = $("#benefitUseForm");
       if (form?.reportValidity()) submitBenefitUse(form, button.dataset.cardId, button.dataset.benefitId);
     }
-    if (action === "benefit-history") showBenefitHistory(button.dataset.cardId, button.dataset.benefitId);
+    if (action === "toggle-benefit-group") { expandedBenefitKey = expandedBenefitKey === button.dataset.key ? "" : button.dataset.key; renderBenefits(); }\n    if (action === "benefit-history") showBenefitHistory(button.dataset.cardId, button.dataset.benefitId);
     if (action === "delete-usage") deleteUsage(id);
     if (action === "add-voucher") showVoucherForm();
     if (action === "edit-voucher") showVoucherForm(id);
