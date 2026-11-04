@@ -487,7 +487,6 @@
       '<div class="field conditional full" id="supplierSelectField"><label>Supplier *</label><select name="supplierChoice" id="supplierChoice"><option value="">Choose saved supplier</option>' + suppliers.map((s,i)=>'<option value="' + i + '" ' + (String(i)===supplierValue?"selected":"") + '>' + esc(s.name + (s.phone ? " · " + s.phone : "")) + '</option>').join("") + '<option value="new" ' + (!existingSupplier && v?.source==="purchased"?"selected":"") + '>＋ Add new supplier</option></select></div>' +
       '<div class="field conditional full" id="supplierFields"><label>Supplier name *</label><input name="supplierName" value="' + esc(v?.supplier?.name || "") + '" placeholder="Seller name"></div>' +
       '<div class="field conditional full" id="supplierPhoneField"><label>Supplier mobile number *</label><input name="supplierPhone" type="tel" value="' + esc(v?.supplier?.phone || "") + '" placeholder="Mobile number"></div>' +
-      '<div class="field conditional" id="holderFields"><label>Cardholder</label><input value="" disabled placeholder="Selected in Origin"></div>' +
       '</div></form>',
       '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-voucher" data-id="' + esc(id || "") + '">' + (v ? "Save changes" : "Save voucher codes") + '</button></div>');
     const source = $("#vSource");
@@ -501,7 +500,6 @@
     const purchased = source === "purchased";
     const holder = source.startsWith("holder:");
     $("#familyCardField")?.classList.toggle("show", holder);
-    $("#holderFields")?.classList.toggle("show", holder);
     $("#supplierSelectField")?.classList.toggle("show", purchased);
     $("#supplierFields")?.classList.toggle("show", purchased && $("#supplierChoice")?.value === "new");
     $("#supplierPhoneField")?.classList.toggle("show", purchased && $("#supplierChoice")?.value === "new");
