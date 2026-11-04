@@ -1,14 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each authenticated user can access only their own workspace document.
+    // A user can read and write only their own workspace document.
     match /users/{userId}/workspace/{documentId} {
-      allow read, write: if request.auth != null
+      allow read: if request.auth != null
+        && request.auth.uid == userId
+        && documentId == "main";
+
+      allow create, update: if request.auth != null
         && request.auth.uid == userId
         && documentId == "main"
-        && request.resource.data.keys().hasOnly(["cards", "vouchers", "updatedAt"])
+        && request.resource.data.keys().hasOnly([
+          "cards",
+          "vouchers",
+          "variants",
+          "holders",
+          "benefitUsages",
+          "updatedAt"
+        ])
         && request.resource.data.cards is list
-        && request.resource.data.vouchers is list;
+        && request.resource.data.vouchers is list
+        && (!("variants" in request.resource.data) || request.resource.data.variants is list)
+        && (!("holders" in request.resource.data) || request.resource.data.holders is list)
+        && (!("benefitUsages" in request.resource.data) || request.resource.data.benefitUsages is list);
+
+      allow delete: if false;
     }
   }
 }
