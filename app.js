@@ -429,10 +429,8 @@
       (state.benefitCatalog.length ? '' : '<div class="notice">Add benefits to the Benefits List first, then return here to select them.</div>') +
       '<form id="variantForm"><div class="form-grid">' +
       '<div class="field"><label>Variant name *</label><input name="name" required value="' + esc(v.name || "") + '" placeholder="e.g. RuPay Select"></div>' +
-      '<div class="field"><label>Bank / issuer *</label><input name="bank" required value="' + esc(v.bank || "") + '" placeholder="e.g. HDFC Bank"></div>' +
-      '<div class="field"><label>Network</label><select name="network">' + ["RuPay","Visa","Mastercard","American Express","Other"].map(x => '<option ' + ((v.network || "RuPay") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
       '<div class="field"><label>Annual fee (₹)</label><input name="annualFee" type="number" min="0" step="1" value="' + esc(v.annualFee || 0) + '" placeholder="0"></div>' +
-      '<div class="field full"><label>Variant notes</label><textarea name="notes" rows="2" placeholder="Eligibility, joining fee waiver or other terms">' + esc(v.notes || "") + '</textarea></div>' +
+      '<div class="field full"><label>Notes (optional)</label><textarea name="notes" rows="2" placeholder="Eligibility, joining fee waiver or other terms">' + esc(v.notes || "") + '</textarea></div>' +
       '<div class="field full"><div class="editor-heading"><div><strong>Select benefits for this variant</strong><small>Each selected benefit has its own cycle and limit for this variant.</small></div><button class="button secondary small" type="button" data-action="add-benefit-row" ' + (!state.benefitCatalog.length ? 'disabled' : '') + '>＋ Select benefit</button></div></div>' +
       '<div class="field full"><div id="benefitEditorRows" class="benefit-editor-list"></div></div></div></form>',
       '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-variant" data-id="' + esc(id || "") + '">Save variant</button></div>');
@@ -562,13 +560,13 @@
   }
   function saveVariant(form, id) {
     const data = new FormData(form);
-    const name = String(data.get("name") || "").trim(), bank = String(data.get("bank") || "").trim();
-    if (!name || !bank) return notify("Enter the variant name and bank / issuer.");
+    const name = String(data.get("name") || "").trim(), bank = ""; 
+    if (!name) return notify("Enter the variant name.");
     const benefits = readBenefitRows(form);
     if (benefits === null) return;
     const old = id ? getVariant(id) : null;
     const record = {
-      id: old?.id || uid(), name, bank, network:String(data.get("network") || "RuPay"),
+      id: old?.id || uid(), name, bank, network:"RuPay",
       annualFee:Number(data.get("annualFee")) || 0, notes:String(data.get("notes") || "").trim(),
       benefits, createdAt:old?.createdAt || new Date().toISOString(), updatedAt:new Date().toISOString()
     };
