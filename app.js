@@ -38,7 +38,7 @@
   }
   function dateLabel(value) {
     if (!value) return "Not set";
-    if (/^\\d{4}-\\d{2}$/.test(String(value))) {
+    if (/^\d{4}-\d{2}$/.test(String(value))) {
       const date = new Date(value + "-01T00:00:00");
       return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { month:"short", year:"numeric" });
     }
@@ -818,6 +818,7 @@
         }
         showAuthGate(false);
         $("#signedInEmail").textContent = user.email || "Account connected";
+        if ($("#accountEmail")) $("#accountEmail").textContent = user.email || "Signed in to your private workspace.";
         try {
           const ref = firebase.firestore().doc("users/" + user.uid + "/workspace/main");
           const snap = await ref.get();
