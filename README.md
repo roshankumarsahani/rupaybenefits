@@ -9,6 +9,13 @@ A private, mobile-friendly workspace for managing bank/card variants, cardholder
 - Define multiple benefits per variant, each with a category, reset cycle, usage cap, unit and conditions.
 - Edit and maintain variant definitions. A variant cannot be deleted while cards are assigned to it.
 
+
+### Benefits List
+- Create a reusable master list of benefits, each with a name, category and description.
+- Select benefits from the list when creating or editing a card variant; one benefit can be reused across many variants.
+- Set the usage cycle, limit, unit and variant-specific conditions separately for each selected benefit.
+- Existing variant benefit entries are migrated into the Benefits List automatically while preserving their usage IDs.
+
 ### Cards and cardholders
 - Add multiple cards and assign each to a configured variant.
 - Assign cards to yourself or a cardholder record.
