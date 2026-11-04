@@ -471,14 +471,14 @@
     const bankKnown = banks.includes(currentBank);
     const bankOptions = banks.map(b => '<option value="' + esc(b) + '" ' + (b === currentBank ? "selected" : "") + '>' + esc(b) + '</option>').join("");
     modal(card ? "Edit card" : "Add a card",
-      '<p class="form-note">Save only the last four digits as a label. Do not store your CVV, full card number or PIN in this app.</p>' +
+      '<p class="form-note">Enter the last five digits only (for identification). Do not store your CVV, full card number or PIN in this app.</p>' +
       '<form id="cardForm"><div class="form-grid">' +
       '<div class="field"><label>Bank *</label><select name="bankChoice" id="cardBank" required><option value="">Choose bank</option>' + bankOptions + '<option value="__new__" ' + (!bankKnown && currentBank ? "selected" : "") + '>＋ Add new bank</option></select></div>' +
       '<div class="field ' + (!bankKnown ? "show" : "") + '" id="newBankField"><label>New bank name *</label><input name="newBank" value="' + esc(!bankKnown ? currentBank : "") + '" placeholder="Enter bank name" ' + (!bankKnown ? "required" : "") + '></div>' +
       '<div class="field"><label>Card variant *</label><select name="variantId" required>' + optionList(variantOptions, card?.variantId || "", "Choose a configured variant") + '</select></div>' +
       '<div class="field"><label>Cardholder</label><select name="holderId">' + optionList(holderOptions, card?.holderId || "", "Self / primary account") + '</select></div>' +
       '<div class="field"><label>Card nickname</label><input name="name" value="' + esc(card?.name || "") + '" placeholder="Optional e.g. Personal card"></div>' +
-      '<div class="field"><label>Last 5 digits</label><input name="last5" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" value="' + esc(card?.last5 || (card?.last4 ? card.last4.slice(-4) : "")) + '" placeholder="e.g. 00000"></div>' +
+      '<div class="field"><label>Last 5 digits</label><input type="text" name="last5" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" autocomplete="off" value="' + esc(card?.last5 || (card?.last4 ? card.last4.slice(-4) : "")) + '" placeholder="e.g. 00000"></div>' +
       '</div></form>',
       '<div class="modal-footer">' + (card ? '<button class="button danger" data-action="delete-card" data-id="' + esc(card.id) + '">Delete card</button>' : '') + '<button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
     $("#cardBank").addEventListener("change", () => {
