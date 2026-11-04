@@ -405,7 +405,7 @@
     modal(item ? "Edit benefit" : "Add benefit to list",
       '<form id="catalogForm"><div class="form-grid">' +
       '<div class="field"><label>Benefit name *</label><input name="name" required maxlength="90" value="' + esc(item?.name || "") + '" placeholder="e.g. Domestic lounge access"></div>' +
-      '<div class="field"><label>Category</label><select name="category">' + ["Lounge","Travel","Dining","Movies","Shopping","Fuel","Wellness","Other"].map(x => '<option ' + ((item?.category || "Other") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field"><label>Category</label><select name="category">' + ["Lounge","Travel","Dining","OTT","Entertainment","Gym","Grocery","Spa","Tax Compliance","Food Delivery","Shopping","Fuel","Wellness","Other"].map(x => '<option ' + ((item?.category || "Other") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
       '<div class="field full"><label>Description / standard terms</label><textarea name="description" rows="2" placeholder="Describe the benefit; variant-specific cycles and limits are set separately.">' + esc(item?.description || "") + '</textarea></div></div></form>',
       '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-catalog" data-id="' + esc(id || "") + '">Save benefit</button></div>');
   }
