@@ -245,9 +245,6 @@
     return rows;
   }
   function renderDashboard() {
-    const benefits = getBenefitRows();
-    const limited = benefits.filter(x => benefitLimit(x.benefit) > 0);
-    const remaining = limited.reduce((n, x) => n + Math.max(0, benefitLimit(x.benefit) - benefitUsed(x.card.id, x.benefit)), 0);
     const stats = [
       ["Cards tracked", state.cards.length, "Your cards and cardholder cards", "▤"],
       ["Voucher codes", state.vouchers.filter(v => v.status === "available").length, "Currently available", "▣"]
@@ -255,13 +252,6 @@
     $("#dashboardStats").innerHTML = stats.map(s =>
       '<article class="stat-card"><div class="stat-top">' + esc(s[0]) + '<span class="stat-icon">' + s[3] + '</span></div><div class="stat-value">' + s[1] + '</div><div class="stat-foot">' + esc(s[2]) + '</div></article>'
     ).join("");
-    $("#dashboardBenefits").innerHTML = benefits.length ? '<div class="dashboard-benefit-grid">' + benefits.slice(0, 8).map(x => {
-      const limit = benefitLimit(x.benefit), used = benefitUsed(x.card.id, x.benefit);
-      const left = limit ? Math.max(0, limit - used) : null;
-      return '<div class="mini-benefit"><div><strong>' + esc(x.benefit.name) + '</strong><small>' + esc(cardLabel(x.card)) + '</small></div><b>' + (limit ? left + " left" : used + " used") + '</b></div>';
-    }).join("") + '</div>' + (benefits.length > 8 ? '<button class="text-button" data-view="benefits">See all ' + benefits.length + ' benefit records ↗</button>' : '') :
-      empty("No benefit tracker yet", "Create a card variant and add cards to see cycle limits here.", "Create a variant", "add-variant");
-
     const recent = [...state.vouchers].sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 5);
     $("#recentVouchers").innerHTML = recent.length ? recent.map(v =>
       '<div class="compact-item"><div><strong>' + esc(v.brand) + '</strong><small>' + esc(v.code) + '</small></div>' + statusPill(v.status) + '</div>'
