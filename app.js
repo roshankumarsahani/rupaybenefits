@@ -46,6 +46,12 @@
     return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
   }
   function todayISO() { return new Date().toISOString().slice(0, 10); }
+  function daysUntil(value) {
+    if (!value) return Infinity;
+    const target = new Date(value + "T00:00:00");
+    const today = new Date(); today.setHours(0,0,0,0);
+    return Number.isNaN(target.getTime()) ? Infinity : Math.ceil((target - today) / 86400000);
+  }
   function notify(message) {
     const toast = $("#toast");
     if (!toast) return;
