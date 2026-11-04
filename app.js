@@ -878,7 +878,8 @@
       const form = $("#benefitUseForm");
       if (form?.reportValidity()) submitBenefitUse(form, button.dataset.cardId, button.dataset.benefitId);
     }
-    if (action === "toggle-benefit-group") { expandedBenefitKey = expandedBenefitKey === button.dataset.key ? "" : button.dataset.key; renderBenefits(); }\n    if (action === "benefit-history") showBenefitHistory(button.dataset.cardId, button.dataset.benefitId);
+    if (action === "toggle-benefit-group") { expandedBenefitKey = expandedBenefitKey === button.dataset.key ? "" : button.dataset.key; renderBenefits(); }
+    if (action === "benefit-history") showBenefitHistory(button.dataset.cardId, button.dataset.benefitId);
     if (action === "delete-usage") deleteUsage(id);
     if (action === "add-voucher") showVoucherForm();
     if (action === "edit-voucher") showVoucherForm(id);
