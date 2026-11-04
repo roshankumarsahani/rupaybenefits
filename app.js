@@ -100,7 +100,12 @@
   function cardLabel(card) {
     const variant = getCardVariant(card);
     const holder = getHolder(card.holderId);
-    return (card.name || variant?.name || "Card") + (holder ? " · " + holder.name : " · Self");
+    const digits = String(card.last5 || card.last4 || "").replace(/\D/g, "").slice(-2);
+    return [
+      card.bank || "",
+      variant?.name || card.name || "Card",
+      digits ? "•• " + digits : ""
+    ].filter(Boolean).concat(holder?.name ? [holder.name] : []).join(" · ");
   }
   function benefitList(variant) { return Array.isArray(variant?.benefits) ? variant.benefits : []; }
 
