@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rupay_benefits}
+      POSTGRES_USER: ${POSTGRES_USER:-rupay_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the server .env file}
+    volumes:
+      - rupay_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER:-rupay_app} -d ${POSTGRES_DB:-rupay_benefits}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    networks:
+      - private-db
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in the server .env file}
+      PGSSLMODE: ${PGSSLMODE:-disable}
+      APP_ORIGINS: ${APP_ORIGINS:?Set APP_ORIGINS in the server .env file}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-rb_session}
+      SESSION_DAYS: ${SESSION_DAYS:-7}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - private-db
+      - app-net
+volumes:
+  rupay_postgres_data:
+networks:
+  private-db:
+    internal: true
+  app-net:
+    driver: bridge

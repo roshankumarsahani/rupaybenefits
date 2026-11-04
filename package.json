@@ -1,0 +1,6 @@
+{
+  "name":"rupay-benefits","version":"0.2.0","private":true,"type":"module",
+  "engines":{"node":">=20"},
+  "scripts":{"start":"node server/index.js","migrate":"node scripts/migrate.js","create-user":"node scripts/create-user.js"},
+  "dependencies":{"bcryptjs":"^2.4.3","cookie-parser":"^1.4.7","cors":"^2.8.5","express":"^4.21.2","express-rate-limit":"^7.5.0","helmet":"^8.0.0","pg":"^8.13.1"}
+}
