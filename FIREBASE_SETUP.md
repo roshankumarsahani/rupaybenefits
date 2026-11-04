@@ -10,7 +10,7 @@ This app uses Firebase Authentication (email/password) and Cloud Firestore. It r
 
 ## Publish the current Firestore rules
 
-This application update adds card variants, cardholders and benefit usage. The rules must allow the added arrays or Firestore will reject saves.
+This application update adds card variants, cardholders, benefit usage and a reusable Benefits List. The rules must allow the added arrays or Firestore will reject saves.
 
 1. Open [Firebase Console](https://console.firebase.google.com/).
 2. Select the **rupay-benefits** project.
@@ -42,6 +42,7 @@ The current rules permit only the signed-in user to read/write their own workspa
 - `variants`: reusable card benefit definitions
 - `holders`: cardholder records
 - `benefitUsages`: card-specific benefit usage entries
+- `benefitCatalog`: reusable benefit definitions selected by card variants
 - `updatedAt`: last cloud save timestamp
 
 ## Important
