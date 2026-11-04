@@ -16,13 +16,15 @@ service cloud.firestore {
           "variants",
           "holders",
           "benefitUsages",
+          "benefitCatalog",
           "updatedAt"
         ])
         && request.resource.data.cards is list
         && request.resource.data.vouchers is list
         && (!("variants" in request.resource.data) || request.resource.data.variants is list)
         && (!("holders" in request.resource.data) || request.resource.data.holders is list)
-        && (!("benefitUsages" in request.resource.data) || request.resource.data.benefitUsages is list);
+        && (!("benefitUsages" in request.resource.data) || request.resource.data.benefitUsages is list)
+        && (!("benefitCatalog" in request.resource.data) || request.resource.data.benefitCatalog is list);
 
       allow delete: if false;
     }
