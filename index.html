@@ -11,7 +11,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script defer src="firebase-config.js?v=3"></script>
-  <script defer src="app.js?v=32"></script>
+  <script defer src="app.js?v=33"></script>
 </head>
 <body>
   <section id="authGate" class="auth-gate">
@@ -37,8 +37,6 @@
       <div class="workspace-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="Main navigation">
         <button class="nav-link active" data-view="dashboard"><span>◫</span> Overview</button>
-        <button class="nav-link" data-view="variants"><span>▦</span> Card variants</button>
-        <button class="nav-link" data-view="benefitCatalog"><span>✧</span> Benefits List</button>
         <button class="nav-link" data-view="cards"><span>▤</span> My cards</button>
         <button class="nav-link" data-view="benefits"><span>✦</span> Benefit tracker</button>
         <button class="nav-link" data-view="vouchers"><span>▣</span> Voucher inventory</button>
@@ -119,6 +117,8 @@
           <article class="panel"><span class="setting-icon">⇧</span><h2>Export a backup</h2><p>Download variants, cards, cardholders, benefit usage and vouchers as a JSON backup file.</p><button class="button primary" data-action="export">Download backup</button></article>
           <article class="panel"><span class="setting-icon">⇩</span><h2>Restore a backup</h2><p>Import a RuPay Benefits JSON backup. Existing records are kept; duplicate IDs are skipped.</p><label class="button secondary file-button">Choose backup file<input id="importFile" type="file" accept="application/json,.json"></label></article>
           <article class="panel"><span class="setting-icon">♧</span><h2>Cardholders</h2><p>Manage cardholder profiles and the cards assigned to each person.</p><button class="button secondary" data-view="family">Manage cardholders</button></article>
+          <article class="panel"><span class="setting-icon">▦</span><h2>Card Variants</h2><p>Configure your RuPay card variants, annual fees and assigned benefits.</p><button class="button secondary" data-view="variants">Manage card variants</button></article>
+          <article class="panel"><span class="setting-icon">✧</span><h2>Benefits List</h2><p>Manage reusable benefits and their categories for your card variants.</p><button class="button secondary" data-view="benefitCatalog">Manage benefits</button></article>
           <article class="panel"><span class="setting-icon">◎</span><h2>Account</h2><p id="accountEmail">Signed in to your private workspace.</p><button class="button secondary" id="signOutButton" type="button">Sign out</button></article>
           <article class="panel warning-panel"><span class="setting-icon">ⓘ</span><h2>Storage & security</h2><p>Your records are stored in your private Firebase workspace and sync across devices signed into this account. Do not store full card numbers, CVVs, PINs, OTPs, passwords or banking credentials.</p><p>Firestore has usage and document-size limits. Export periodic JSON backups.</p><p id="syncStatus" class="muted">Cloud sync status will appear here.</p></article>
         </div>
