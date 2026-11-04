@@ -43,10 +43,10 @@
         <button class="nav-link" data-view="vouchers"><span>▣</span> Voucher inventory</button>
         <button class="nav-link" data-view="family"><span>♧</span> Family / cardholders</button>
         <button class="nav-link" data-view="suppliers"><span>◇</span> Suppliers</button>
+        <button class="nav-link mobile-settings-link" data-view="settings"><span>⚙</span> Settings</button>
       </nav>
       <div class="sidebar-bottom">
         <div class="storage-note"><span class="storage-dot"></span><div><strong>Firebase cloud</strong><small id="signedInEmail">Connecting workspace</small></div></div>
-        <button class="nav-link" id="signOutButton" type="button"><span>↪</span> Sign out</button>
         <button class="nav-link" data-view="settings"><span>⚙</span> Data & settings</button>
       </div>
     </aside>
@@ -113,6 +113,7 @@
         <div class="settings-grid">
           <article class="panel"><span class="setting-icon">⇧</span><h2>Export a backup</h2><p>Download variants, cards, cardholders, benefit usage and vouchers as a JSON backup file.</p><button class="button primary" data-action="export">Download backup</button></article>
           <article class="panel"><span class="setting-icon">⇩</span><h2>Restore a backup</h2><p>Import a RuPay Benefits JSON backup. Existing records are kept; duplicate IDs are skipped.</p><label class="button secondary file-button">Choose backup file<input id="importFile" type="file" accept="application/json,.json"></label></article>
+          <article class="panel"><span class="setting-icon">◎</span><h2>Account</h2><p id="accountEmail">Signed in to your private workspace.</p><button class="button secondary" id="signOutButton" type="button">Sign out</button></article>
           <article class="panel warning-panel"><span class="setting-icon">ⓘ</span><h2>Storage & security</h2><p>Your records are stored in your private Firebase workspace and sync across devices signed into this account. Do not store full card numbers, CVVs, PINs, OTPs, passwords or banking credentials.</p><p>Firestore has usage and document-size limits. Export periodic JSON backups.</p><p id="syncStatus" class="muted">Cloud sync status will appear here.</p></article>
         </div>
       </section>
