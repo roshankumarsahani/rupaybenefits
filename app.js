@@ -265,7 +265,7 @@
       return '<article class="panel variant-card"><div class="variant-head"><div><span class="card-network">' + esc(v.network || "CARD") + '</span><h2>' + esc(v.name) + '</h2><p>' + esc(v.bank || "Issuer not set") + '</p></div><span class="count-pill">' + assigned + ' assigned</span></div>' +
         '<div class="variant-meta"><span>Annual fee</span><strong>' + (Number(v.annualFee) ? money(v.annualFee) : "Not set") + '</strong></div>' +
         '<div class="variant-benefits"><div class="section-kicker">' + benefits.length + ' BENEFITS</div>' +
-        (benefits.length ? benefits.map(b => '<div class="benefit-definition"><div><strong>' + esc(b.name) + '</strong><small>' + esc(b.category || "Other") + ' · ' + esc(b.cycle || "Manual") + '</small></div><b>' + (Number(b.limit) > 0 ? esc(b.limit) + ' ' + esc(b.unit || "uses") : 'No cap') + '</b></div>').join("") : '<p class="muted">No benefits configured.</p>') + '</div>' +
+        (benefits.length ? benefits.map(b => '<div class="benefit-definition"><div><strong>' + esc(b.name) + '</strong><small>' + esc(b.category || "Other") + ' · ' + esc(b.cycle || "Manual") + '</small></div><b>' + (Number(b.limit) > 0 ? esc(b.limit) + ' ' + (Number(b.limit) === 1 ? 'voucher' : 'vouchers') : 'No cap') + '</b></div>').join("") : '<p class="muted">No benefits configured.</p>') + '</div>' +
         (v.notes ? '<p class="variant-note">' + esc(v.notes) + '</p>' : '') +
         '<div class="card-actions"><button class="button secondary small" data-action="edit-variant" data-id="' + esc(v.id) + '">Edit variant</button><button class="button quiet small" data-action="delete-variant" data-id="' + esc(v.id) + '">Delete</button></div></article>';
     }).join("") + '</div>';
@@ -392,12 +392,11 @@
     row.className = "benefit-editor-row";
     row.dataset.benefitRow = "1";
     row.dataset.benefitId = b.id || "";
-    row.innerHTML = '<div class="field full"><label>Select benefit *</label><select data-field="catalogId" required>' +
+    row.innerHTML = '<div class="field full"><label>Benefit *</label><select data-field="catalogId" required>' +
       optionList(state.benefitCatalog.map(x => ({id:x.id,label:x.name + " · " + (x.category || "Other")})), b.catalogId || "", "Choose from Benefits List") + '</select></div>' +
-      '<div class="field"><label>Cycle for this variant</label><select data-field="cycle">' + ["Monthly","Quarterly","Semi-annual","Annual","One-time","Manual"].map(x => '<option ' + ((b.cycle || "Quarterly") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
-      '<div class="field"><label>Limit per cycle</label><input data-field="limit" type="number" min="0" step="1" value="' + esc(b.limit ?? 0) + '" placeholder="0 = no cap"></div>' +
-      '<div class="field"><label>Unit</label><select data-field="unit">' + ["visits","transactions","tickets","uses","₹ value"].map(x => '<option ' + ((b.unit || "visits") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
-      '<div class="field"><label>Notes / conditions</label><input data-field="notes" value="' + esc(b.notes || "") + '" placeholder="Optional terms or eligibility"></div>' +
+      '<div class="field"><label>Cycle</label><select data-field="cycle">' + ["Monthly","Quarterly","Semi-annual","Annual","One-time","Manual"].map(x => '<option ' + ((b.cycle || "Quarterly") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
+      '<div class="field"><label>Limit (vouchers per card)</label><input data-field="limit" type="number" min="0" step="1" value="' + esc(b.limit ?? 1) + '" placeholder="1"></div>' +
+      '<div class="field full"><small>Counts gift cards, coupons or vouchers per card, regardless of their rupee value. Set 0 for no limit.</small></div>' +
       '<button class="icon-action remove-benefit-row" type="button" data-action="remove-benefit-row" aria-label="Remove benefit">×</button>';
     root.appendChild(row);
   }
@@ -551,8 +550,8 @@
       return {
         id:row.dataset.benefitId || uid(), catalogId:catalog.id,
         name:catalog.name, category:catalog.category || "Other",
-        cycle:val("cycle") || "Manual", limit:Number(val("limit")) || 0,
-        unit:val("unit") || "uses", notes:val("notes")
+        cycle:val("cycle") || "Manual", limit:Math.max(0, Number(val("limit")) || 0),
+        unit:"vouchers", notes:""
       };
     }).filter(Boolean);
     if (new Set(rows.map(x => x.catalogId)).size !== rows.length) {
