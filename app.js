@@ -295,13 +295,12 @@
       const variant = getCardVariant(card);
       const holder = getHolder(card.holderId);
       const benefits = benefitList(variant);
-      const active = benefits.filter(b => Number(b.limit) > 0).length;
-      const used = benefits.filter(b => Number(b.limit) > 0 && benefitUsed(card.id, b) >= Number(b.limit)).length;
-      return '<article class="card-visual"><div class="card-topline"><span class="card-network">' + esc(variant?.network || card.network || "CARD") + '</span><span class="card-owner">' + esc(holder?.name || "Self") + '</span></div>' +
-        '<div class="card-chip">▦</div><h2>' + esc(card.name || variant?.name || "Card") + '</h2><p>' + esc(variant?.name || "Legacy / unassigned variant") + ' · ' + esc(variant?.bank || card.bank || "") + '</p>' +
+      const active = benefits.filter(b => benefitLimit(b) > 0).length;
+      const used = benefits.filter(b => benefitLimit(b) > 0 && benefitUsed(card.id, b) >= benefitLimit(b)).length;
+      return '<article class="card-visual"><div class="card-topline"><span class="card-network">' + esc(variant?.network || card.network || "RuPay") + '</span><span class="card-owner">' + esc(holder?.name || "Self") + '</span></div>' +
+        '<div class="card-chip">▦</div><h2>' + esc(card.bank || "Bank not set") + '</h2><p>' + esc(variant?.name || "Legacy / unassigned variant") + '</p>' +
         '<div class="card-number">' + (card.last4 ? "•••• •••• •••• " + esc(card.last4) : "Last four digits not added") + '</div>' +
         '<div class="card-foot"><span>' + benefits.length + ' benefits</span><span>' + used + '/' + active + ' limits exhausted</span></div>' +
-        '<div class="card-record-meta"><span>Expires ' + dateLabel(card.expiryDate) + '</span><span>' + esc(card.status || "Active") + '</span></div>' +
         '<div class="card-actions"><button class="button secondary small" data-action="edit-card" data-id="' + esc(card.id) + '">Edit card</button><button class="button quiet small" data-action="delete-card" data-id="' + esc(card.id) + '">Delete</button><button class="button quiet small" data-action="card-benefits" data-id="' + esc(card.id) + '">Benefits ↗</button></div></article>';
     }).join("") + '</div>';
   }
@@ -465,19 +464,28 @@
   function showCardForm(id) {
     if (!state.variants.length) { notify("Create a card variant before adding a card."); openView("variants"); showVariantForm(); return; }
     const card = id ? getCard(id) : null;
-    const variantOptions = state.variants.map(v => ({ id:v.id, label:v.name + " · " + v.bank }));
+    const variantOptions = state.variants.map(v => ({ id:v.id, label:v.name }));
     const holderOptions = state.holders.map(h => ({ id:h.id, label:h.name + (h.relation ? " · " + h.relation : "") }));
+    const banks = [...new Set(state.cards.map(c => String(c.bank || "").trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+    const currentBank = String(card?.bank || "").trim();
+    const bankKnown = banks.includes(currentBank);
+    const bankOptions = banks.map(b => '<option value="' + esc(b) + '" ' + (b === currentBank ? "selected" : "") + '>' + esc(b) + '</option>').join("");
     modal(card ? "Edit card" : "Add a card",
-      '<p class="form-note">Only save the last four digits as a label. Never enter a full card number, CVV, PIN or banking password.</p>' +
+      '<p class="form-note">Save only the last four digits as a label. Do not store your CVV, full card number or PIN in this app.</p>' +
       '<form id="cardForm"><div class="form-grid">' +
-      '<div class="field full"><label>Card variant *</label><select name="variantId" required>' + optionList(variantOptions, card?.variantId || "", "Choose a configured variant") + '</select></div>' +
+      '<div class="field"><label>Bank *</label><select name="bankChoice" id="cardBank" required><option value="">Choose bank</option>' + bankOptions + '<option value="__new__" ' + (!bankKnown && currentBank ? "selected" : "") + '>＋ Add new bank</option></select></div>' +
+      '<div class="field ' + (!bankKnown ? "show" : "") + '" id="newBankField"><label>New bank name *</label><input name="newBank" value="' + esc(!bankKnown ? currentBank : "") + '" placeholder="Enter bank name" ' + (!bankKnown ? "required" : "") + '></div>' +
+      '<div class="field"><label>Card variant *</label><select name="variantId" required>' + optionList(variantOptions, card?.variantId || "", "Choose a configured variant") + '</select></div>' +
       '<div class="field"><label>Cardholder</label><select name="holderId">' + optionList(holderOptions, card?.holderId || "", "Self / primary account") + '</select></div>' +
       '<div class="field"><label>Card nickname</label><input name="name" value="' + esc(card?.name || "") + '" placeholder="Optional e.g. Personal card"></div>' +
       '<div class="field"><label>Last 4 digits</label><input name="last4" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" value="' + esc(card?.last4 || "") + '" placeholder="Optional"></div>' +
-      '<div class="field"><label>Expiry date</label><input name="expiryDate" type="month" value="' + esc(card?.expiryDate || "") + '"></div>' +
-      '<div class="field"><label>Status</label><select name="status">' + ["Active","Blocked","Closed","Expired"].map(x => '<option ' + ((card?.status || "Active") === x ? "selected" : "") + '>' + x + '</option>').join("") + '</select></div>' +
-      '<div class="field full"><label>Notes</label><textarea name="notes" rows="2">' + esc(card?.notes || "") + '</textarea></div></div></form>',
+      '</div></form>',
       '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
+    $("#cardBank").addEventListener("change", () => {
+      const isNew = $("#cardBank").value === "__new__";
+      $("#newBankField").classList.toggle("show", isNew);
+      $("#newBankField input").toggleAttribute("required", isNew);
+    });
   }
   function showVoucherForm(id) {
     const v = id ? state.vouchers.find(x => x.id === id) : null;
@@ -634,13 +642,14 @@
     if (!variant) return notify("Choose a valid card variant.");
     const last4 = String(data.get("last4") || "").trim();
     if (last4 && !/^\d{4}$/.test(last4)) return notify("Enter only the last four digits.");
+    const bankChoice = String(data.get("bankChoice") || "");
+    const bank = bankChoice === "__new__" ? String(data.get("newBank") || "").trim() : bankChoice.trim();
+    if (!bank) return notify("Choose or enter the bank name.");
     const old = id ? getCard(id) : null;
     const record = {
       id:old?.id || uid(), variantId:variant.id, name:String(data.get("name") || "").trim() || variant.name,
-      bank:variant.bank, network:variant.network, holderId:String(data.get("holderId") || "") || null,
-      last4, expiryDate:String(data.get("expiryDate") || ""), status:String(data.get("status") || "Active"),
-      notes:String(data.get("notes") || "").trim(), createdDate:old?.createdDate || todayISO(),
-      createdAt:old?.createdAt || new Date().toISOString()
+      bank, network:variant.network || "RuPay", holderId:String(data.get("holderId") || "") || null,
+      last4, createdDate:old?.createdDate || todayISO(), createdAt:old?.createdAt || new Date().toISOString()
     };
     if (old) state.cards = state.cards.map(c => c.id === id ? record : c);
     else state.cards.push(record);
