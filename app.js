@@ -299,7 +299,7 @@
       const used = benefits.filter(b => benefitLimit(b) > 0 && benefitUsed(card.id, b) >= benefitLimit(b)).length;
       return '<article class="card-visual"><div class="card-topline"><span class="card-network">' + esc(variant?.network || card.network || "RuPay") + '</span><span class="card-owner">' + esc(holder?.name || "Self") + '</span></div>' +
         '<div class="card-chip">▦</div><h2>' + esc(card.bank || "Bank not set") + '</h2><p>' + esc(variant?.name || "Legacy / unassigned variant") + '</p>' + (card.name && card.name !== variant?.name ? '<p class="card-nickname">' + esc(card.name) + '</p>' : '') +
-        '<div class="card-number">' + (card.last4 ? "•••• •••• •••• " + esc(card.last4) : "Last four digits not added") + '</div>' +
+        '<div class="card-number">' + (card.last5 ? "•••• •••• ••• " + esc(card.last5.slice(0,3)) + " " + esc(card.last5.slice(3)) : (card.last4 ? "•••• •••• •••• " + esc(card.last4) : "Last five digits not added")) + '</div>' +
         '<div class="card-foot"><span>' + benefits.length + ' benefits</span><span>' + used + '/' + active + ' limits exhausted</span></div>' +
         '<div class="card-actions"><button class="button secondary small" data-action="edit-card" data-id="' + esc(card.id) + '">Edit card</button><button class="button quiet small" data-action="card-benefits" data-id="' + esc(card.id) + '">Benefits ↗</button></div></article>';
     }).join("") + '</div>';
@@ -478,7 +478,7 @@
       '<div class="field"><label>Card variant *</label><select name="variantId" required>' + optionList(variantOptions, card?.variantId || "", "Choose a configured variant") + '</select></div>' +
       '<div class="field"><label>Cardholder</label><select name="holderId">' + optionList(holderOptions, card?.holderId || "", "Self / primary account") + '</select></div>' +
       '<div class="field"><label>Card nickname</label><input name="name" value="' + esc(card?.name || "") + '" placeholder="Optional e.g. Personal card"></div>' +
-      '<div class="field"><label>Last 4 digits</label><input name="last4" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" value="' + esc(card?.last4 || "") + '" placeholder="Optional"></div>' +
+      '<div class="field"><label>Last 5 digits</label><input name="last5" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" value="' + esc(card?.last5 || (card?.last4 ? card.last4.slice(-4) : "")) + '" placeholder="e.g. 00000"></div>' +
       '</div></form>',
       '<div class="modal-footer">' + (card ? '<button class="button danger" data-action="delete-card" data-id="' + esc(card.id) + '">Delete card</button>' : '') + '<button class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" data-action="submit-card" data-id="' + esc(id || "") + '">Save card</button></div>');
     $("#cardBank").addEventListener("change", () => {
@@ -640,8 +640,8 @@
     const data = new FormData(form);
     const variant = getVariant(String(data.get("variantId") || ""));
     if (!variant) return notify("Choose a valid card variant.");
-    const last4 = String(data.get("last4") || "").trim();
-    if (last4 && !/^\d{4}$/.test(last4)) return notify("Enter only the last four digits.");
+    const last5 = String(data.get("last5") || "").trim();
+    if (last5 && !/^\d{5}$/.test(last5)) return notify("Enter exactly five digits.");
     const bankChoice = String(data.get("bankChoice") || "");
     const bank = bankChoice === "__new__" ? String(data.get("newBank") || "").trim() : bankChoice.trim();
     if (!bank) return notify("Choose or enter the bank name.");
@@ -649,7 +649,7 @@
     const record = {
       id:old?.id || uid(), variantId:variant.id, name:String(data.get("name") || "").trim() || variant.name,
       bank, network:variant.network || "RuPay", holderId:String(data.get("holderId") || "") || null,
-      last4, createdDate:old?.createdDate || todayISO(), createdAt:old?.createdAt || new Date().toISOString()
+      last5, createdDate:old?.createdDate || todayISO(), createdAt:old?.createdAt || new Date().toISOString()
     };
     if (old) state.cards = state.cards.map(c => c.id === id ? record : c);
     else state.cards.push(record);
