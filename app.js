@@ -313,7 +313,7 @@
     );
     if (!rows.length) return notify("No cards found for this benefit.");
     const name = rows[0].benefit.name || "Benefit";
-    modal(name + " · Cards", '<p class="form-note">Choose a card below to log usage or view its history.</p><div class="benefit-card-list">' +
+    modal("Cards using " + name, '<p class="form-note">This separate popup shows every card linked to this benefit. Choose a card to log usage or view its history, or close the popup to return to the tracker.</p><div class="benefit-card-list">' +
       rows.map(benefitCardMarkup).join("") + '</div>',
       '<div class="modal-footer"><button class="button secondary" data-action="close-modal">Close</button></div>');
   }
@@ -336,7 +336,7 @@
       const usedTotal = group.rows.reduce((n,x) => n + benefitUsed(x.card.id,x.benefit),0);
       const allowedTotal = group.rows.reduce((n,x) => n + benefitLimit(x.benefit),0);
       const remainingTotal = group.rows.reduce((n,x) => n + (benefitLimit(x.benefit) ? Math.max(0,benefitLimit(x.benefit)-benefitUsed(x.card.id,x.benefit)) : 0),0);
-      return '<article class="panel benefit-card"><div class="benefit-group-toggle"><span><span class="category-pill">' + esc(group.category) + '</span><h2>' + esc(group.name) + '</h2><small>' + group.rows.length + ' card' + (group.rows.length===1?'':'s') + ' linked to this benefit</small></span><button class="button secondary small" data-action="view-benefit-cards" data-key="' + esc(group.key) + '">View cards ↗</button></div>' +
+      return '<article class="panel benefit-card"><div class="benefit-group-toggle"><span><span class="category-pill">' + esc(group.category) + '</span><h2>' + esc(group.name) + '</h2><small>' + group.rows.length + ' card' + (group.rows.length===1?'':'s') + ' linked to this benefit</small></span><button class="button secondary small" data-action="view-benefit-cards" data-key="' + esc(group.key) + '">Open cards ↗</button></div>' +
         '<div class="usage-numbers"><div><strong>' + usedTotal + '</strong><small>Total used</small></div><div><strong>' + (allowedTotal ? remainingTotal : '—') + '</strong><small>Total remaining</small></div><div><strong>' + (allowedTotal || '—') + '</strong><small>Total allowed</small></div></div></article>';
     }).join("") + '</div>' : '<div class="panel">' + empty("No benefits to track", "Add a card variant with benefit definitions and assign that variant to a card.", state.variants.length ? "Add a card" : "Create a variant", state.variants.length ? "add-card" : "add-variant") + '</div>';
   }
