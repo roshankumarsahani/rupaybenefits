@@ -248,12 +248,8 @@
     const benefits = getBenefitRows();
     const limited = benefits.filter(x => benefitLimit(x.benefit) > 0);
     const remaining = limited.reduce((n, x) => n + Math.max(0, benefitLimit(x.benefit) - benefitUsed(x.card.id, x.benefit)), 0);
-    const expiring = state.vouchers.filter(v => v.status === "available" && v.expiryDate && daysUntil(v.expiryDate) >= 0 && daysUntil(v.expiryDate) <= 30)
-      .sort((a,b) => a.expiryDate.localeCompare(b.expiryDate)).slice(0, 5);
     const stats = [
-      ["Card variants", state.variants.length, "Reusable benefit blueprints", "▦"],
       ["Cards tracked", state.cards.length, "Your cards and cardholder cards", "▤"],
-      ["Benefits tracked", benefits.length, "Across assigned cards", "✦"],
       ["Voucher codes", state.vouchers.filter(v => v.status === "available").length, "Currently available", "▣"]
     ];
     $("#dashboardStats").innerHTML = stats.map(s =>
@@ -265,9 +261,7 @@
       return '<div class="mini-benefit"><div><strong>' + esc(x.benefit.name) + '</strong><small>' + esc(cardLabel(x.card)) + '</small></div><b>' + (limit ? left + " left" : used + " used") + '</b></div>';
     }).join("") + '</div>' + (benefits.length > 8 ? '<button class="text-button" data-view="benefits">See all ' + benefits.length + ' benefit records ↗</button>' : '') :
       empty("No benefit tracker yet", "Create a card variant and add cards to see cycle limits here.", "Create a variant", "add-variant");
-    $("#expiringList").innerHTML = expiring.length ? expiring.map(v =>
-      '<div class="compact-item"><div><strong>' + esc(v.brand) + '</strong><small>' + esc(v.code) + '</small></div><span class="expiry-date">' + (daysUntil(v.expiryDate) === 0 ? "Today" : daysUntil(v.expiryDate) + " days") + '</span></div>'
-    ).join("") : empty("All clear", "No available vouchers expiring in the next 30 days.");
+
     const recent = [...state.vouchers].sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 5);
     $("#recentVouchers").innerHTML = recent.length ? recent.map(v =>
       '<div class="compact-item"><div><strong>' + esc(v.brand) + '</strong><small>' + esc(v.code) + '</small></div>' + statusPill(v.status) + '</div>'
