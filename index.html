@@ -39,8 +39,7 @@
       </a>
       <div class="workspace-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="Main navigation">
-        <button class="nav-link active" data-view="dashboard"><span>◫</span> Overview</button>
-        <button class="nav-link" data-view="cards"><span>▤</span> My cards</button>
+        <button class="nav-link active" data-view="cards"><span>▤</span> My cards</button>
         <button class="nav-link" data-view="benefits"><span>✦</span> Benefit tracker</button>
         <button class="nav-link" data-view="vouchers"><span>▣</span> Voucher inventory</button>
         <button class="nav-link" data-view="suppliers"><span>◇</span> Suppliers</button>
@@ -55,17 +54,9 @@
     <main class="main-area">
       <header class="topbar">
         <div class="mobile-brand"><span class="brand-mark">₹</span><strong>RuPay Benefits</strong></div>
-        <div class="breadcrumb"><span>Workspace</span><b>/</b><strong id="pageCrumb">Overview</strong></div>
+        <div class="breadcrumb"><span>Workspace</span><b>/</b><strong id="pageCrumb">My cards</strong></div>
         <div class="top-actions"><span class="currency-pill">INR · ₹</span><span class="avatar">R</span></div>
       </header>
-
-      <section class="view active" id="view-dashboard">
-        <div class="page-heading"><div><p class="eyebrow">YOUR BENEFITS, IN ONE PLACE</p><h1>Overview</h1><p class="subheading">Track cards, benefits, cardholders and vouchers in one place.</p></div></div>
-        <div class="stat-grid" id="dashboardStats"></div>
-        <div class="dashboard-grid">
-          <article class="panel"><div class="panel-heading"><div><h2>Recent vouchers</h2><p>Latest inventory additions</p></div><button class="text-button" data-view="vouchers">View all ↗</button></div><div id="recentVouchers"></div></article>
-        </div>
-      </section>
 
       <section class="view" id="view-variants">
         <div class="page-heading"><div><p class="eyebrow">REUSABLE CARD BLUEPRINTS</p><h1>Card variants</h1><p class="subheading">Define card benefits once, then assign the variant to each cardholder's card.</p></div><button class="button primary" data-action="add-variant">＋ Add variant</button></div>
