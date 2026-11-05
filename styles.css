@@ -86,3 +86,31 @@
 #view-cards .cards-page-title{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
 #view-cards .cards-count{display:inline-flex;align-items:center;justify-content:center;min-width:27px;height:27px;padding:0 8px;border:1px solid #385171;border-radius:999px;background:#172942;color:#dce8fa;font-size:12px;font-weight:750;letter-spacing:0}
 @media(max-width:800px){#view-cards .cards-count{min-width:25px;height:25px;font-size:11px}}
+
+
+/* Compact card list inside the benefit details popup */
+.benefit-cards-modal{width:min(100%,620px)}
+.benefit-cards-modal .modal-header{padding:12px 16px}
+.benefit-cards-modal .modal-header h2{font-size:15px;line-height:1.25}
+.benefit-cards-modal .modal-body{padding:10px}
+.benefit-cards-modal .modal-footer{padding:9px 12px}
+.benefit-card-list{display:grid;gap:8px}
+.benefit-card-compact{padding:11px 12px;border-radius:13px;box-shadow:none}
+.benefit-card-compact .benefit-card-top{align-items:center;flex-wrap:wrap;gap:6px}
+.benefit-card-compact .category-pill,.benefit-card-compact .count-pill{font-size:9px;padding:5px 8px}
+.benefit-card-compact .count-pill{max-width:100%;overflow-wrap:anywhere}
+.benefit-card-compact h3{font-size:14px;line-height:1.25;margin:8px 0 3px;overflow-wrap:anywhere}
+.benefit-card-holder{font-size:10px;line-height:1.25;color:var(--muted);margin:0}
+.benefit-card-holder strong{color:#dbe8fa;font-weight:750}
+.benefit-card-compact .usage-numbers{margin:9px 0 7px;gap:8px}
+.benefit-card-compact .usage-numbers strong{font-size:18px}
+.benefit-card-compact .usage-numbers small{font-size:9px;margin-top:2px}
+.benefit-card-compact .benefit-card-actions{margin-top:7px;gap:7px}
+.benefit-card-compact .benefit-card-actions .button{padding:7px 10px;font-size:10px}
+@media(max-width:800px){
+  .benefit-cards-modal{max-height:88vh}
+  .benefit-cards-modal .modal-header{padding:11px 13px}
+  .benefit-cards-modal .modal-body{padding:8px}
+  .benefit-card-compact{padding:10px 11px}
+  .benefit-card-compact h3{font-size:13px}
+}
