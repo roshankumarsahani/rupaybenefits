@@ -80,3 +80,9 @@
  .benefit-group-meta .button{font-size:10px;padding:7px 8px}
  #view-benefits .benefit-card{padding:11px}
 }
+
+
+/* My cards heading count */
+#view-cards .cards-page-title{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+#view-cards .cards-count{display:inline-flex;align-items:center;justify-content:center;min-width:27px;height:27px;padding:0 8px;border:1px solid #385171;border-radius:999px;background:#172942;color:#dce8fa;font-size:12px;font-weight:750;letter-spacing:0}
+@media(max-width:800px){#view-cards .cards-count{min-width:25px;height:25px;font-size:11px}}
