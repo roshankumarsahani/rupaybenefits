@@ -14,7 +14,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script defer src="firebase-config.js?v=4"></script>
-  <script defer src="app.js?v=45"></script>
+  <script defer src="app.js?v=46"></script>
 </head>
 <body>
   <section id="authGate" class="auth-gate">
@@ -42,7 +42,6 @@
         <button class="nav-link active" data-view="cards"><span>▤</span> My cards</button>
         <button class="nav-link" data-view="benefits"><span>✦</span> Benefit tracker</button>
         <button class="nav-link" data-view="vouchers"><span>▣</span> Voucher inventory</button>
-        <button class="nav-link" data-view="suppliers"><span>◇</span> Suppliers</button>
         <button class="nav-link mobile-settings-link" data-view="settings"><span>⚙</span> Settings</button>
       </nav>
       <div class="sidebar-bottom">
@@ -96,11 +95,6 @@
       <section class="view" id="view-family">
         <div class="page-heading"><div><p class="eyebrow">CARDHOLDER MANAGEMENT</p><h1>Cardholders</h1><p class="subheading">Manage cardholders and their assigned cards in one workspace.</p></div><button class="button primary" data-action="add-holder">＋ Add cardholder</button></div>
         <div id="familyContent"></div>
-      </section>
-
-      <section class="view" id="view-suppliers">
-        <div class="page-heading"><div><p class="eyebrow">PURCHASE HISTORY</p><h1>Suppliers</h1><p class="subheading">Supplier contacts and purchased voucher history are grouped here.</p></div><button class="button secondary" data-view="vouchers">Browse vouchers</button></div>
-        <div id="suppliersContent"></div>
       </section>
 
       <section class="view" id="view-settings">
