@@ -218,21 +218,32 @@
   function benefitLimit(benefit) {
     return isOttBenefit(benefit) ? 1 : (Number(benefit?.limit) || 0);
   }
-  function ottBenefitUsed(dateValue) {
+  function ottBenefitUsed(cardId, dateValue) {
     const year = String(dateValue || todayISO()).slice(0, 4);
     const ottIds = new Set(state.variants.flatMap(v => (v.benefits || [])
       .filter(b => isOttBenefit(b)).map(b => b.id)));
     return state.benefitUsages.filter(u =>
-      ottIds.has(u.benefitId) && String(u.usedAt || "").slice(0, 4) === year
+      u.cardId === cardId && ottIds.has(u.benefitId) &&
+      String(u.usedAt || "").slice(0, 4) === year
     ).reduce((sum, u) => sum + (Number(u.quantity) || 1), 0);
   }
-  function benefitUsed(cardId, benefit, dateValue) {
-    if (isOttBenefit(benefit)) return ottBenefitUsed(dateValue);
+  function benefitSpecificUsed(cardId, benefit, dateValue) {
+    if (isOttBenefit(benefit)) {
+      const year = String(dateValue || todayISO()).slice(0, 4);
+      return state.benefitUsages.filter(u =>
+        u.cardId === cardId && u.benefitId === benefit.id &&
+        String(u.usedAt || "").slice(0, 4) === year
+      ).reduce((sum, u) => sum + (Number(u.quantity) || 1), 0);
+    }
     const key = periodKey(benefit.cycle || "Manual", dateValue || todayISO());
     return state.benefitUsages.filter(u =>
       u.cardId === cardId && u.benefitId === benefit.id &&
       periodKey(benefit.cycle || "Manual", u.usedAt) === key
     ).reduce((sum, u) => sum + (Number(u.quantity) || 1), 0);
+  }
+  function benefitUsed(cardId, benefit, dateValue) {
+    if (isOttBenefit(benefit)) return ottBenefitUsed(cardId, dateValue);
+    return benefitSpecificUsed(cardId, benefit, dateValue);
   }
   function getBenefitRows() {
     const rows = [];
@@ -281,10 +292,12 @@
     }).join("") + '</div>';
   }
   function benefitCardMarkup(x) {
-    const limit = benefitLimit(x.benefit), used = benefitUsed(x.card.id,x.benefit);
-    const left = limit ? Math.max(0,limit-used) : null;
-    const exhausted = limit > 0 && used >= limit;
-    const ottUnavailable = isOttBenefit(x.benefit) && exhausted;
+    const limit = benefitLimit(x.benefit);
+    const ott = isOttBenefit(x.benefit);
+    const used = benefitSpecificUsed(x.card.id,x.benefit);
+    const exhausted = limit > 0 && (ott ? benefitUsed(x.card.id,x.benefit) >= limit : used >= limit);
+    const left = limit ? Math.max(0,limit-used-(ott && exhausted && used < limit ? 1 : 0)) : null;
+    const ottUnavailable = ott && exhausted;
     const actionLabel = ottUnavailable ? "Unavailable" : "＋ Log use";
     const actionHint = ottUnavailable ? ' title="An OTT benefit was already logged on another card this year."' : '';
     return '<article class="panel benefit-card"><div class="benefit-card-top"><span class="category-pill">' + esc(x.benefit.cycle || "Manual") + '</span><span class="count-pill">' + esc(x.variant?.name || "Card") + '</span></div>' +
@@ -324,10 +337,11 @@
     const items = [...groups.values()].sort((a,b) => a.name.localeCompare(b.name));
     root.innerHTML = items.length ? '<div class="benefit-grid">' + items.map(group => {
       const ottGroup = isOttBenefit(group.rows[0].benefit);
-      const ottUsed = ottGroup ? benefitUsed(null, group.rows[0].benefit) : 0;
-      const usedTotal = ottGroup ? ottUsed : group.rows.reduce((n,x) => n + benefitUsed(x.card.id,x.benefit),0);
-      const allowedTotal = ottGroup ? 1 : group.rows.reduce((n,x) => n + benefitLimit(x.benefit),0);
-      const remainingTotal = ottGroup ? Math.max(0,1-ottUsed) : group.rows.reduce((n,x) => n + (benefitLimit(x.benefit) ? Math.max(0,benefitLimit(x.benefit)-benefitUsed(x.card.id,x.benefit)) : 0),0);
+      const usedTotal = group.rows.reduce((n,x) => n + benefitSpecificUsed(x.card.id,x.benefit),0);
+      const allowedTotal = ottGroup ? group.rows.length : group.rows.reduce((n,x) => n + benefitLimit(x.benefit),0);
+      const remainingTotal = ottGroup
+        ? group.rows.filter(x => benefitUsed(x.card.id,x.benefit) < benefitLimit(x.benefit)).length
+        : group.rows.reduce((n,x) => n + (benefitLimit(x.benefit) ? Math.max(0,benefitLimit(x.benefit)-benefitUsed(x.card.id,x.benefit)) : 0),0);
       return '<article class="panel benefit-card"><div class="benefit-group-toggle"><span><span class="category-pill">' + esc(group.category) + '</span><h2>' + esc(group.name) + '</h2></span><div class="benefit-group-meta"><small>' + group.rows.length + ' card' + (group.rows.length===1?'':'s') + ' linked to this benefit</small><button class="button secondary small" data-action="view-benefit-cards" data-key="' + esc(group.key) + '">Open cards ↗</button></div></div>' +
         '<div class="usage-numbers"><div><strong>' + usedTotal + '</strong><small>Total used</small></div><div><strong>' + (allowedTotal ? remainingTotal : '—') + '</strong><small>Total remaining</small></div><div><strong>' + (allowedTotal || '—') + '</strong><small>Total allowed</small></div></div></article>';
     }).join("") + '</div>' : '<div class="panel">' + empty("No benefits to track", "Add a card variant with benefit definitions and assign that variant to a card.", state.variants.length ? "Add a card" : "Create a variant", state.variants.length ? "add-card" : "add-variant") + '</div>';
@@ -577,10 +591,10 @@
     const used = benefitUsed(cardId, benefit);
     const left = limit ? Math.max(0, limit - used) : null;
     if (isOttBenefit(benefit) && used >= limit) {
-      return notify("An OTT benefit has already been logged this year. All OTT benefits are unavailable until next year.");
+      return notify("An OTT benefit has already been logged on this card this year. Other OTT benefits on this card are unavailable until next year.");
     }
     modal("Log benefit usage",
-      '<p class="form-note"><strong>' + esc(benefit.name) + '</strong><br>' + esc(cardLabel(card)) + ' · ' + esc(benefit.cycle) + ' cycle. ' + (isOttBenefit(benefit) ? 'One OTT benefit across all cards is allowed each calendar year. Logging any OTT benefit blocks every other OTT benefit on all cards until next year.' : (limit ? left + ' ' + esc(benefit.unit || "uses") + ' remaining in this cycle.' : 'No usage cap is configured.')) + '</p>' +
+      '<p class="form-note"><strong>' + esc(benefit.name) + '</strong><br>' + esc(cardLabel(card)) + ' · ' + esc(benefit.cycle) + ' cycle. ' + (isOttBenefit(benefit) ? 'One OTT benefit per card is allowed each calendar year. Logging any OTT benefit blocks the other OTT benefits on this card until next year; other cards remain eligible.' : (limit ? left + ' ' + esc(benefit.unit || "uses") + ' remaining in this cycle.' : 'No usage cap is configured.')) + '</p>' +
       '<form id="benefitUseForm"><div class="form-grid"><div class="field"><label>Usage date *</label><input name="usedAt" type="date" required value="' + todayISO() + '"></div>' +
       '<div class="field"><label>Quantity (' + esc(benefit.unit || "uses") + ') *</label><input name="quantity" type="number" min="1" step="1" value="1" required></div>' +
       '<div class="field"><label>Amount (₹, optional)</label><input name="amount" type="number" min="0" step="1" placeholder="Optional"></div>' +
@@ -725,10 +739,10 @@
     const limit = benefitLimit(benefit);
     const used = benefitUsed(cardId, benefit, usedAt);
     if (isOttBenefit(benefit) && used >= limit) {
-      return notify("An OTT benefit has already been logged for " + usedAt.slice(0,4) + ". All OTT benefits are unavailable for that calendar year.");
+      return notify("An OTT benefit has already been logged on this card for " + usedAt.slice(0,4) + ". Other OTT benefits on this card are unavailable for that calendar year.");
     }
     if (isOttBenefit(benefit) && used + quantity > limit) {
-      return notify("Only one OTT benefit across all cards can be logged per calendar year.");
+      return notify("Only one OTT benefit per card can be logged per calendar year.");
     }
     if (limit && used + quantity > limit) return notify("This usage would exceed the " + benefit.cycle + " limit of " + limit + ".");
     state.benefitUsages.push({
