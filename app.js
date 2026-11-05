@@ -97,15 +97,21 @@
   function getHolder(id) { return state.holders.find(h => h.id === id); }
   function getCard(id) { return state.cards.find(c => c.id === id); }
   function getCardVariant(card) { return getVariant(card?.variantId); }
-  function cardLabel(card) {
+  function cardDetailsLabel(card) {
     const variant = getCardVariant(card);
-    const holder = getHolder(card.holderId);
     const digits = String(card.last5 || card.last4 || "").replace(/\D/g, "").slice(-2);
     return [
       card.bank || "",
       variant?.name || card.name || "Card",
       digits ? "•• " + digits : ""
-    ].filter(Boolean).concat(holder?.name ? [holder.name] : []).join(" · ");
+    ].filter(Boolean).join(" · ");
+  }
+  function cardholderLabel(card) {
+    return getHolder(card?.holderId)?.name?.trim() || "Self";
+  }
+  function cardLabel(card) {
+    const holder = getHolder(card.holderId);
+    return [cardDetailsLabel(card), holder?.name].filter(Boolean).join(" · ");
   }
   function benefitList(variant) { return Array.isArray(variant?.benefits) ? variant.benefits : []; }
 
@@ -300,8 +306,8 @@
     const ottUnavailable = ott && exhausted;
     const actionLabel = ottUnavailable ? "Unavailable" : "＋ Log use";
     const actionHint = ottUnavailable ? ' title="A different OTT benefit has already been used on this card this year."' : '';
-    return '<article class="panel benefit-card"><div class="benefit-card-top"><span class="category-pill">' + esc(x.benefit.cycle || "Manual") + '</span><span class="count-pill">' + esc(x.variant?.name || "Card") + '</span></div>' +
-      '<h3>' + esc(cardLabel(x.card)) + '</h3>' +
+    return '<article class="panel benefit-card benefit-card-compact"><div class="benefit-card-top"><span class="category-pill">' + esc(x.benefit.cycle || "Manual") + '</span><span class="count-pill">' + esc(x.variant?.name || "Card") + '</span></div>' +
+      '<h3>' + esc(cardDetailsLabel(x.card)) + '</h3><p class="benefit-card-holder">Cardholder: <strong>' + esc(cardholderLabel(x.card)) + '</strong></p>' +
       (limit ? '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used</small></div><div><strong>' + left + '</strong><small>Remaining</small></div><div><strong>' + limit + '</strong><small>Allowed</small></div></div>' :
       '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used</small></div><div><strong>—</strong><small>No defined cap</small></div></div>') +
       '<div class="benefit-card-actions"><button class="button ' + (exhausted ? 'quiet' : 'primary') + ' small" data-action="log-benefit" data-card-id="' + esc(x.card.id) + '" data-benefit-id="' + esc(x.benefit.id) + '"' + (exhausted ? ' disabled' : '') + actionHint + '>' + actionLabel + '</button><button class="button secondary small" data-action="benefit-history" data-card-id="' + esc(x.card.id) + '" data-benefit-id="' + esc(x.benefit.id) + '">History</button></div></article>';
@@ -315,6 +321,10 @@
       (!cycleFilter || x.benefit.cycle === cycleFilter)
     );
     if (!rows.length) return notify("No cards found for this benefit.");
+    rows.sort((a,b) =>
+      cardholderLabel(a.card).localeCompare(cardholderLabel(b.card), "en", { sensitivity:"base" }) ||
+      cardDetailsLabel(a.card).localeCompare(cardDetailsLabel(b.card), "en", { sensitivity:"base" })
+    );
     const name = rows[0].benefit.name || "Benefit";
     modal("Cards using " + name, '<div class="benefit-card-list">' +
       rows.map(benefitCardMarkup).join("") + '</div>',
@@ -413,7 +423,7 @@
 
   function modal(title, body, footer) {
     const root = $("#modal");
-    root.innerHTML = '<div class="modal-card" role="dialog" aria-modal="true"><div class="modal-header"><h2>' + esc(title) + '</h2><button class="close-button" data-action="close-modal" aria-label="Close">×</button></div><div class="modal-body">' + body + '</div>' + (footer || "") + '</div>';
+    root.innerHTML = '<div class="modal-card' + (body.includes('benefit-card-list') ? ' benefit-cards-modal' : '') + '" role="dialog" aria-modal="true"><div class="modal-header"><h2>' + esc(title) + '</h2><button class="close-button" data-action="close-modal" aria-label="Close">×</button></div><div class="modal-body">' + body + '</div>' + (footer || "") + '</div>';
     root.classList.add("open");
     root.setAttribute("aria-hidden", "false");
   }
