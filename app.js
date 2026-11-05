@@ -10,7 +10,7 @@
   let creatingAccount = false;
   let saveQueue = Promise.resolve();
   let selectedIds = new Set();
-  let activeView = "dashboard";
+  let activeView = "cards";
   let toastTimer;
 
   function loadState() {
@@ -172,7 +172,7 @@
   }
 
   const VIEW_LABELS = {
-    dashboard:"Overview", variants:"Card variants", cards:"My cards", benefits:"Benefit tracker", benefitCatalog:"Benefits list",
+    variants:"Card variants", cards:"My cards", benefits:"Benefit tracker", benefitCatalog:"Benefits list",
     vouchers:"Voucher inventory", family:"Cardholders", suppliers:"Suppliers", settings:"Data & settings"
   };
   function openView(view) {
@@ -185,7 +185,6 @@
     window.scrollTo({ top:0, behavior:"smooth" });
   }
   function render() {
-    renderDashboard();
     renderVariants();
     renderCards();
     renderBenefits();
@@ -243,19 +242,6 @@
       benefitList(variant).forEach(benefit => rows.push({ card, variant, benefit }));
     });
     return rows;
-  }
-  function renderDashboard() {
-    const stats = [
-      ["Cards tracked", state.cards.length, "Your cards and cardholder cards", "▤"],
-      ["Voucher codes", state.vouchers.filter(v => v.status === "available").length, "Currently available", "▣"]
-    ];
-    $("#dashboardStats").innerHTML = stats.map(s =>
-      '<article class="stat-card"><div class="stat-top">' + esc(s[0]) + '<span class="stat-icon">' + s[3] + '</span></div><div class="stat-value">' + s[1] + '</div><div class="stat-foot">' + esc(s[2]) + '</div></article>'
-    ).join("");
-    const recent = [...state.vouchers].sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 5);
-    $("#recentVouchers").innerHTML = recent.length ? recent.map(v =>
-      '<div class="compact-item"><div><strong>' + esc(v.brand) + '</strong><small>' + esc(v.code) + '</small></div>' + statusPill(v.status) + '</div>'
-    ).join("") : empty("No vouchers yet", "Add your first voucher code.", "Add vouchers", "add-voucher");
   }
   function renderVariants() {
     const root = $("#variantsContent");
