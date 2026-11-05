@@ -299,7 +299,7 @@
     const left = limit ? Math.max(0,limit-used-(ott && exhausted && used < limit ? 1 : 0)) : null;
     const ottUnavailable = ott && exhausted;
     const actionLabel = ottUnavailable ? "Unavailable" : "＋ Log use";
-    const actionHint = ottUnavailable ? ' title="An OTT benefit was already logged on another card this year."' : '';
+    const actionHint = ottUnavailable ? ' title="A different OTT benefit has already been used on this card this year."' : '';
     return '<article class="panel benefit-card"><div class="benefit-card-top"><span class="category-pill">' + esc(x.benefit.cycle || "Manual") + '</span><span class="count-pill">' + esc(x.variant?.name || "Card") + '</span></div>' +
       '<h3>' + esc(cardLabel(x.card)) + '</h3>' +
       (limit ? '<div class="usage-numbers"><div><strong>' + used + '</strong><small>Used</small></div><div><strong>' + left + '</strong><small>Remaining</small></div><div><strong>' + limit + '</strong><small>Allowed</small></div></div>' :
@@ -342,8 +342,15 @@
       const remainingTotal = ottGroup
         ? group.rows.filter(x => benefitUsed(x.card.id,x.benefit) < benefitLimit(x.benefit)).length
         : group.rows.reduce((n,x) => n + (benefitLimit(x.benefit) ? Math.max(0,benefitLimit(x.benefit)-benefitUsed(x.card.id,x.benefit)) : 0),0);
+      const ottLockedTotal = ottGroup ? group.rows.filter(x =>
+        benefitUsed(x.card.id,x.benefit) >= benefitLimit(x.benefit) &&
+        benefitSpecificUsed(x.card.id,x.benefit) < benefitLimit(x.benefit)
+      ).length : 0;
+      const ottLockedNote = ottLockedTotal
+        ? '<p class="benefit-note">' + ottLockedTotal + ' card' + (ottLockedTotal===1?' is':'s are') + ' locked because a different OTT benefit was already used this year.</p>'
+        : '';
       return '<article class="panel benefit-card"><div class="benefit-group-toggle"><span><span class="category-pill">' + esc(group.category) + '</span><h2>' + esc(group.name) + '</h2></span><div class="benefit-group-meta"><small>' + group.rows.length + ' card' + (group.rows.length===1?'':'s') + ' linked to this benefit</small><button class="button secondary small" data-action="view-benefit-cards" data-key="' + esc(group.key) + '">Open cards ↗</button></div></div>' +
-        '<div class="usage-numbers"><div><strong>' + usedTotal + '</strong><small>Total used</small></div><div><strong>' + (allowedTotal ? remainingTotal : '—') + '</strong><small>Total remaining</small></div><div><strong>' + (allowedTotal || '—') + '</strong><small>Total allowed</small></div></div></article>';
+        '<div class="usage-numbers"><div><strong>' + usedTotal + '</strong><small>Total used</small></div><div><strong>' + (allowedTotal ? remainingTotal : '—') + '</strong><small>Total remaining</small></div><div><strong>' + (allowedTotal || '—') + '</strong><small>Total allowed</small></div></div>' + ottLockedNote + '</article>';
     }).join("") + '</div>' : '<div class="panel">' + empty("No benefits to track", "Add a card variant with benefit definitions and assign that variant to a card.", state.variants.length ? "Add a card" : "Create a variant", state.variants.length ? "add-card" : "add-variant") + '</div>';
   }
 
