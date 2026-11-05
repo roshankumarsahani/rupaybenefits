@@ -173,7 +173,7 @@
 
   const VIEW_LABELS = {
     variants:"Card variants", cards:"My cards", benefits:"Benefit tracker", benefitCatalog:"Benefits list",
-    vouchers:"Voucher inventory", family:"Cardholders", suppliers:"Suppliers", settings:"Data & settings"
+    vouchers:"Voucher inventory", family:"Cardholders", settings:"Data & settings"
   };
   function openView(view) {
     if (!VIEW_LABELS[view]) return;
@@ -191,7 +191,6 @@
     renderBenefitCatalog();
     renderVouchers();
     renderFamily();
-    renderSuppliers();
   }
 
   function periodKey(cycle, dateValue) {
