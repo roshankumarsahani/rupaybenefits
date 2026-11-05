@@ -261,6 +261,8 @@
   }
   function renderCards() {
     const root = $("#cardsContent");
+    const count = $("#myCardsCount");
+    if (count) count.textContent = String(state.cards.length);
     if (!state.cards.length) {
       root.innerHTML = '<div class="panel">' + empty("No cards added", "Create a variant first, then assign it to your own card or a cardholder.", state.variants.length ? "Add a card" : "Create a variant", state.variants.length ? "add-card" : "add-variant") + '</div>';
       return;
