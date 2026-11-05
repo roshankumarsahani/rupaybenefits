@@ -322,8 +322,9 @@
     );
     if (!rows.length) return notify("No cards found for this benefit.");
     rows.sort((a,b) =>
-      cardholderLabel(a.card).localeCompare(cardholderLabel(b.card), "en", { sensitivity:"base" }) ||
-      cardDetailsLabel(a.card).localeCompare(cardDetailsLabel(b.card), "en", { sensitivity:"base" })
+      String(a.card.bank || "").trim().localeCompare(String(b.card.bank || "").trim(), "en", { sensitivity:"base" }) ||
+      cardDetailsLabel(a.card).localeCompare(cardDetailsLabel(b.card), "en", { sensitivity:"base" }) ||
+      cardholderLabel(a.card).localeCompare(cardholderLabel(b.card), "en", { sensitivity:"base" })
     );
     const name = rows[0].benefit.name || "Benefit";
     modal("Cards using " + name, '<div class="benefit-card-list">' +
