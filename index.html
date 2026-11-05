@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#101a32">
   <title>RuPay Benefits — Card & Voucher Manager</title>
   <meta name="description" content="A private workspace to manage card variants, cardholders, benefits and voucher inventory.">
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=17">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -39,10 +39,10 @@
       </a>
       <div class="workspace-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="Main navigation">
-        <button class="nav-link active" data-view="cards"><span>▤</span> My cards</button>
-        <button class="nav-link" data-view="benefits"><span>✦</span> Benefit tracker</button>
-        <button class="nav-link" data-view="vouchers"><span>▣</span> Voucher inventory</button>
-        <button class="nav-link mobile-settings-link" data-view="settings"><span>⚙</span> Settings</button>
+        <button class="nav-link active" data-view="cards"><span>▤</span><span class="nav-label">My cards</span></button>
+        <button class="nav-link" data-view="benefits"><span>✦</span><span class="nav-label">Benefit tracker</span></button>
+        <button class="nav-link" data-view="vouchers"><span>▣</span><span class="nav-label">Voucher inventory</span></button>
+        <button class="nav-link mobile-settings-link" data-view="settings"><span>⚙</span><span class="nav-label">Settings</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="storage-note"><span class="storage-dot"></span><div><strong>Firebase cloud</strong><small id="signedInEmail">Connecting workspace</small></div></div>
