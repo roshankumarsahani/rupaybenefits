@@ -14,7 +14,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script defer src="firebase-config.js?v=4"></script>
-  <script defer src="app.js?v=52"></script>
+  <script defer src="app.js?v=53"></script>
 </head>
 <body>
   <section id="authGate" class="auth-gate">
@@ -89,7 +89,7 @@
         </div>
         <div class="inventory-summary" id="inventorySummary"></div>
         <div class="panel inventory-panel"><div id="voucherTable" class="table-wrap"></div></div>
-        <div class="bulk-actions" id="bulkActions"><span id="selectedCount">0 selected</span><button class="button secondary small" data-action="copy-selected">Copy selected codes</button><button class="button quiet small" data-action="clear-selection">Clear</button></div>
+        <div class="bulk-actions" id="bulkActions"><span id="selectedCount">0 selected</span><button class="button primary small" data-action="mark-selected-used">Mark as used</button><button class="button secondary small" data-action="copy-selected">Copy selected codes</button><button class="button quiet small" data-action="clear-selection">Clear</button></div>
       </section>
 
       <section class="view" id="view-family">
