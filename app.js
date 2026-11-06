@@ -940,6 +940,16 @@
       const codes = state.vouchers.filter(v => selectedIds.has(v.id)).map(v => v.code);
       if (codes.length) copyText(codes.join("\n"));
     }
+    if (action === "mark-selected-used") {
+      const selected = state.vouchers.filter(v => selectedIds.has(v.id));
+      const eligible = selected.filter(v => (v.status || "available") === "available");
+      if (!eligible.length) return notify("No selected vouchers are available to mark as used.");
+      if (!window.confirm("Mark " + eligible.length + " selected voucher" + (eligible.length === 1 ? "" : "s") + " as used?")) return;
+      const usedAt = todayISO();
+      const ids = new Set(eligible.map(v => v.id));
+      state.vouchers = state.vouchers.map(v => ids.has(v.id) ? { ...v, status:"redeemed", redeemedAt:usedAt } : v);
+      selectedIds.clear(); persist(); render(); notify(eligible.length + " voucher" + (eligible.length === 1 ? "" : "s") + " marked as used.");
+    }
     if (action === "clear-selection") { selectedIds.clear(); renderVouchers(); }
     if (action === "export") exportBackup();
   });
