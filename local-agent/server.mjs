@@ -90,7 +90,7 @@ function classifyPage(url,title) {
 async function inspectContext(uid,id) {
   const item = getContext(uid,id);
   if (!item) throw new Error("No browser session is open for this account. Open it first.");
-  const page = item.context.pages()[0];
+  const page = item.context.pages().at(-1);
   const details = await page.evaluate(() => {
     const visible = element => {
       const style = getComputedStyle(element), rect = element.getBoundingClientRect();
@@ -128,7 +128,7 @@ app.post("/api/agent/accounts/:id/open",requireAgentAuth,async(req,res) => {
     let item=getContext(uid,id);
     if (!item) {
       const activeForUser=[...contexts.keys()].filter(key=>key.startsWith(uid + ":")).length;
-      if (activeForUser >= 8) return res.status(429).json({error:"This account already has eight open browser sessions. Close one first."});
+      if (activeForUser >= 4) return res.status(429).json({error:"This account already has four open browser sessions. Close one first."});
       const context=await chromium.launchPersistentContext(profilePath(uid,id),{
         headless:AUTH_MODE === "firebase",
         viewport:{width:1280,height:800},
@@ -164,7 +164,7 @@ app.post("/api/agent/accounts/:id/click",requireAgentAuth,async(req,res) => {
   try {
     const item=getContext(req.agentUid,req.params.id);
     if (!item) throw new Error("Open this account's browser first.");
-    const page=item.context.pages()[0], viewport=page.viewportSize() || {width:1280,height:800};
+    const page=item.context.pages().at(-1), viewport=page.viewportSize() || {width:1280,height:800};
     if (!Number.isFinite(x) || !Number.isFinite(y) || x<0 || y<0 || x>=viewport.width || y>=viewport.height) {
       return res.status(400).json({error:"Tap position is outside the browser screen."});
     }
@@ -180,14 +180,14 @@ app.post("/api/agent/accounts/:id/type",requireAgentAuth,async(req,res) => {
   try {
     const item=getContext(req.agentUid,req.params.id);
     if (!item) throw new Error("Open this account's browser first.");
-    const page=item.context.pages()[0];
+    const page=item.context.pages().at(-1);
     await page.keyboard.insertText(value);
     res.json(await screenshotContext(req.agentUid,req.params.id));
   } catch(error) { res.status(409).json({error:String(error.message || error).slice(0,220)}); }
 });
 app.post("/api/agent/accounts/:id/press",requireAgentAuth,async(req,res) => {
   if (!validId(req.params.id)) return res.status(400).json({error:"Invalid account identifier."});
-  const allowed=new Set(["Enter","Tab","Backspace","Escape","ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Delete"]);
+  const allowed=new Set(["Enter","Tab","Backspace","Escape","ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Delete","PageUp","PageDown","Home","End"," "]);
   const key=req.body?.key;
   if (!allowed.has(key)) return res.status(400).json({error:"That keyboard key is not enabled."});
   try {
