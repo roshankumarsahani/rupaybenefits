@@ -110,7 +110,7 @@ async function inspectContext(uid,id) {
 async function screenshotContext(uid,id) {
   const item = getContext(uid,id);
   if (!item) throw new Error("No browser session is open for this account. Open it first.");
-  const page = item.context.pages()[0];
+  const page = item.context.pages().at(-1);
   const image = await page.screenshot({ type:"jpeg", quality:68, fullPage:false, animations:"disabled" });
   const info = classifyPage(page.url(), await page.title().catch(() => ""));
   const viewport = page.viewportSize() || { width:1280, height:800 };
@@ -138,7 +138,7 @@ app.post("/api/agent/accounts/:id/open",requireAgentAuth,async(req,res) => {
       item={context,openedAt:new Date().toISOString()};
       contexts.set(profileKey(uid,id),item);
     }
-    const page=item.context.pages()[0] || await item.context.newPage();
+    const page=item.context.pages().at(-1) || await item.context.newPage();
     if (!page.url() || page.url()==="about:blank") {
       await page.goto(PORTAL_URL,{waitUntil:"domcontentloaded",timeout:45000});
     } else await page.bringToFront().catch(()=>{});
@@ -193,8 +193,8 @@ app.post("/api/agent/accounts/:id/press",requireAgentAuth,async(req,res) => {
   try {
     const item=getContext(req.agentUid,req.params.id);
     if (!item) throw new Error("Open this account's browser first.");
-    await item.context.pages()[0].keyboard.press(key);
-    await item.context.pages()[0].waitForTimeout(150);
+    await item.context.pages().at(-1).keyboard.press(key);
+    await item.context.pages().at(-1).waitForTimeout(150);
     res.json(await screenshotContext(req.agentUid,req.params.id));
   } catch(error) { res.status(409).json({error:String(error.message || error).slice(0,220)}); }
 });
