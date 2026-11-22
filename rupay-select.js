@@ -122,39 +122,99 @@
     setMessage("Account removed. Its browser profile was not deleted.", "success");
   }
   async function agentFetch(path, options = {}) {
-    if (!onLocalHost()) throw new Error("Open the local copy on your desktop at http://127.0.0.1:3939. A hosted page or iPhone cannot reach a desktop's localhost agent.");
-    if (!localToken) throw new Error("Paste the pairing code printed in the desktop terminal, then tap Connect.");
-    const response = await fetch(path,{...options,headers:{"Content-Type":"application/json","X-Local-Agent-Token":localToken,...(options.headers || {})},cache:"no-store"});
+    const headers = {"Content-Type":"application/json",...(options.headers || {})};
+    if (onLocalHost()) {
+      if (!localToken) throw new Error("Paste the pairing code printed in the local-agent terminal, then tap Connect.");
+      headers["X-Local-Agent-Token"] = localToken;
+    } else {
+      const user = firebase.auth().currentUser;
+      if (!user) throw new Error("Sign in to your RuPay Benefits workspace first.");
+      headers.Authorization = "Bearer " + await user.getIdToken();
+    }
+    const response = await fetch(path,{...options,headers,cache:"no-store"});
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "Local browser agent request failed (" + response.status + ").");
+    if (!response.ok) throw new Error(data.error || "Browser agent request failed (" + response.status + ").");
     return data;
   }
   async function checkAgent() {
     const status = $("#rsAgentStatus"), tokenInput = $("#rsAgentToken");
     if (tokenInput) tokenInput.value = localToken;
-    if (!onLocalHost()) {
-      if (status) status.textContent = "Unavailable from a hosted page or iPhone. Start the companion on a desktop and open its local URL there.";
-      return false;
-    }
     try {
       const response = await fetch("/api/agent/health",{cache:"no-store"});
       if (!response.ok) throw new Error("offline");
       const data = await response.json();
-      if (status) status.textContent = "Local companion online · " + data.version + (localToken ? " · pairing code saved for this tab" : " · enter its pairing code below");
+      if (status) status.textContent = data.mode === "firebase"
+        ? "Oracle Cloud browser agent online · remote browser is private to your signed-in account"
+        : "Local companion online · " + data.version + (localToken ? " · pairing code saved for this tab" : " · enter its pairing code below");
+      if (tokenInput) tokenInput.closest(".rs-agent-controls").hidden = data.mode === "firebase";
       return true;
     } catch {
-      if (status) status.textContent = "Local companion not running. Start it from the local-agent folder on your computer.";
+      if (status) status.textContent = onLocalHost()
+        ? "Local companion not running. Start it from local-agent."
+        : "Oracle browser agent is not connected. Deploy the Oracle service and open this app on its HTTPS domain.";
       return false;
     }
   }
+  function renderRemoteBrowser(id, screen) {
+    const viewer = $("#rsBrowserViewer");
+    if (!viewer) return;
+    const paymentWarning = screen.likelyPaymentPage
+      ? '<p class="rs-warning">Payment / bank verification page detected. Review the ₹1 amount and card details yourself, then tap the final payment controls and complete any OTP / 3-D Secure approval manually.</p>'
+      : "";
+    viewer.innerHTML = '<div class="rs-inspection-card"><div class="rs-section-head"><div><strong>Remote RuPay browser</strong><small class="rs-muted">' + esc(screen.host || "RuPay portal") + '</small></div>' +
+      '<button class="button secondary small" type="button" data-rs-action="refresh-screen" data-id="' + esc(id) + '">↻ Refresh screen</button></div>' + paymentWarning +
+      '<div class="rs-remote-screen-wrap"><img class="rs-remote-screen" data-rs-screenshot data-id="' + esc(id) + '" src="data:image/jpeg;base64,' + screen.image + '" alt="Live RuPay Select browser screen" draggable="false"></div>' +
+      '<p class="rs-muted">Tap the browser image to click. Text entered below is sent directly to the focused portal field and is not saved in this workspace.</p>' +
+      '<form id="rsRemoteTypeForm" data-id="' + esc(id) + '" class="rs-remote-type"><input name="text" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="2000" placeholder="Type into the focused browser field" aria-label="Text to send to browser"><button class="button primary small" type="submit">Send text</button></form>' +
+      '<div class="rs-actions rs-key-actions">' + ["Tab","Enter","Backspace","Escape"].map(key => '<button class="button secondary small" type="button" data-rs-action="press-key" data-id="' + esc(id) + '" data-key="' + key + '">' + key + '</button>').join("") +
+      '<button class="button quiet small" type="button" data-rs-action="close-browser" data-id="' + esc(id) + '">Close browser session</button></div></div>';
+  }
+  async function refreshBrowserScreen(id) {
+    try {
+      const screen = await agentFetch("/api/agent/accounts/" + encodeURIComponent(id) + "/screenshot",{method:"POST",body:"{}"});
+      renderRemoteBrowser(id,screen);
+    } catch(error) { setMessage(error.message,"error"); }
+  }
   async function openAccountBrowser(id) {
-    const account = accounts.find(a => a.id === id);
+    const account=accounts.find(a=>a.id===id);
     if (!account) return;
     try {
       setMessage("Opening the saved browser profile…");
-      const result = await agentFetch("/api/agent/accounts/" + encodeURIComponent(id) + "/open",{method:"POST",body:JSON.stringify({label:account.label || account.email})});
-      setMessage("Browser opened for " + (account.label || account.email) + ". Sign in to the official portal yourself; this account has its own saved browser profile.", "success");
-      if (result.portalUrl) setMessage("Portal opened: " + result.portalUrl + ". Complete sign-in and any OTP/CAPTCHA directly in the visible browser.", "success");
+      const result=await agentFetch("/api/agent/accounts/" + encodeURIComponent(id) + "/open",{method:"POST",body:JSON.stringify({label:account.label || account.email})});
+      renderRemoteBrowser(id,result);
+      setMessage("Browser opened for " + (account.label || account.email) + ". Sign in directly in the remote browser screen.", "success");
+    } catch(error) { setMessage(error.message,"error"); }
+  }
+  async function clickRemoteScreen(image,event) {
+    const rect=image.getBoundingClientRect();
+    const x=(event.clientX-rect.left)/rect.width*Number(image.naturalWidth || 1280);
+    const y=(event.clientY-rect.top)/rect.height*Number(image.naturalHeight || 800);
+    try {
+      const screen=await agentFetch("/api/agent/accounts/" + encodeURIComponent(image.dataset.id) + "/click",{method:"POST",body:JSON.stringify({x,y})});
+      renderRemoteBrowser(image.dataset.id,screen);
+    } catch(error) { setMessage(error.message,"error"); }
+  }
+  async function pressRemoteKey(id,key) {
+    try {
+      const screen=await agentFetch("/api/agent/accounts/" + encodeURIComponent(id) + "/press",{method:"POST",body:JSON.stringify({key})});
+      renderRemoteBrowser(id,screen);
+    } catch(error) { setMessage(error.message,"error"); }
+  }
+  async function typeRemoteText(form) {
+    const input=form.elements.namedItem("text");
+    const value=String(input?.value || "");
+    if (!value) return;
+    try {
+      const screen=await agentFetch("/api/agent/accounts/" + encodeURIComponent(form.dataset.id) + "/type",{method:"POST",body:JSON.stringify({text:value})});
+      input.value="";
+      renderRemoteBrowser(form.dataset.id,screen);
+    } catch(error) { setMessage(error.message,"error"); }
+  }
+  async function closeRemoteBrowser(id) {
+    try {
+      await agentFetch("/api/agent/accounts/" + encodeURIComponent(id) + "/close",{method:"POST",body:"{}"});
+      $("#rsBrowserViewer").innerHTML="";
+      setMessage("Remote browser closed. Its saved session profile remains on Oracle Cloud.", "success");
     } catch(error) { setMessage(error.message,"error"); }
   }
   async function inspectAccount(id) {
@@ -170,7 +230,7 @@
     } catch(error) { setMessage(error.message,"error"); }
   }
   root.addEventListener("submit",event => {
-    const form = event.target.closest("#rsAccountForm,[data-rs-edit-form]");
+    const form = event.target.closest("#rsAccountForm,[data-rs-edit-form],#rsRemoteTypeForm");
     if (!form) return;
     event.preventDefault();
     if (!form.reportValidity()) return;
@@ -184,7 +244,7 @@
     if (action === "refresh") refreshAll().catch(error => setMessage(error.message,"error"));
     if (action === "delete") deleteAccount(id).catch(error => setMessage(error.message,"error"));
     if (action === "open") openAccountBrowser(id);
-    if (action === "inspect") inspectAccount(id);
+    if (action === "inspect") inspectAccount(id);\n    if (action === "refresh-screen") refreshBrowserScreen(id);\n    if (action === "press-key") pressRemoteKey(id,button.dataset.key);\n    if (action === "close-browser") closeRemoteBrowser(id);
     if (action === "connect-agent") {
       localToken = String($("#rsAgentToken")?.value || "").trim();
       if (!localToken) return setMessage("Paste the pairing code from the desktop terminal.","error");
