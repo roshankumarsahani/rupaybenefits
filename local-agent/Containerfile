@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.65.0-noble-arm64
+FROM mcr.microsoft.com/playwright:v1.65.0-noble
 
 WORKDIR /app
 COPY . /app
