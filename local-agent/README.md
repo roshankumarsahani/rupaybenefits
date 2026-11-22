@@ -1,61 +1,69 @@
-# RuPay Benefits local companion
+# RuPay Select browser companion — Oracle Cloud
 
-This companion launches a separate, visible Chromium profile for each RuPay Select portal account. It runs only on your desktop computer and stores browser cookies/session data locally.
+The Oracle deployment runs the Playwright browser on the VM and provides a signed-in screen viewer in the RuPay Benefits dashboard. You can operate the remote portal browser from an iPhone through HTTPS.
 
-## Requirements
+## Target
 
-- Windows, macOS or Linux desktop/laptop
-- Node.js 20 or newer
-- Internet connection
-- A local copy of the RuPay Benefits project
+- Oracle Linux 9 on Oracle Cloud Infrastructure
+- A1 Flex / Ampere ARM64 VM (the Containerfile pins the official ARM64 Playwright image)
+- Podman
+- A DNS hostname pointing to the VM public IP
 
-This companion is not compatible with iPhone/iPad Safari. iOS does not allow this Node.js + Playwright browser worker to run locally.
+Microsoft publishes ARM64 Playwright container images; this build pins Playwright 1.65.0 so the Node package and image browser versions stay aligned. Oracle Linux 9 provides Podman through the container-tools package.
 
-## Install and start
+## Deployment prerequisites
 
-Open Terminal or PowerShell in the local-agent folder and run:
+1. Use the feature branch that contains this companion code.
+2. Create a DNS A record, for example benefits.example.com, pointing to the Oracle VM public IPv4 address.
+3. In the OCI VCN subnet Security List or Network Security Group, allow inbound TCP 80 and TCP 443 to this VM. Do not open TCP 3939.
+4. In Firebase Console → Authentication → Settings → Authorized domains, add the hostname.
+5. Publish the root firestore.rules file from this branch in Firebase Console → Firestore Database → Rules. It permits account metadata at users/{uid}/rupaySelectAccounts without storing portal passwords or payment credentials.
 
-1. npm install
-2. npx playwright install chromium
-3. npm start
+## Install
 
-Then open http://127.0.0.1:3939 on the same computer. The local server serves the existing RuPay Benefits app and its browser companion together.
+SSH into Oracle Linux 9 and run:
 
-The terminal prints a one-time pairing code. In the app's RuPay Select tab, paste that code and tap Connect local companion. The code stays in the current browser tab's session storage and is recreated when the companion restarts.
+    sudo dnf install -y git
+    git clone --branch feature/rupay-select-local-companion https://github.com/roshankumarsahani/rupaybenefits.git
+    cd rupaybenefits
+    sudo bash local-agent/deploy-oracle.sh benefits.example.com
 
-If Firebase Authentication refuses localhost sign-in, add 127.0.0.1 and localhost to Firebase Console → Authentication → Settings → Authorized domains.
+Replace benefits.example.com with the hostname you configured. The script installs Podman, builds the ARM64 browser container, creates systemd services and starts Caddy for HTTPS.
 
-## Use multiple portal accounts
+Caddy requests and renews the HTTPS certificate after DNS is correct and ports 80/443 are reachable. If firewalld is active, allow HTTP and HTTPS with the commands below. Preserve existing firewall rules, especially WireGuard rules:
 
-1. Sign in to the RuPay Benefits workspace.
-2. Open RuPay Select.
-3. Add each registered RuPay Select portal email as a separate account.
-4. Link the cards already recorded in your Cards tab.
-5. Tap Open saved browser for an account. A separate persistent Chromium profile opens at the RuPay booking portal.
-6. Sign in to that portal yourself. Complete any OTP, CAPTCHA or other verification directly in the visible browser.
-7. Repeat for each account. Each account has an independent profile and keeps its own portal session on this computer.
-8. Use Inspect portal page to view visible headings and action labels. The inspection is local and does not collect page body text or payment form values.
+    sudo firewall-cmd --permanent --add-service=http
+    sudo firewall-cmd --permanent --add-service=https
+    sudo firewall-cmd --reload
 
-## Important payment and security limits
+Also add the same ingress rules in OCI VCN Security Lists or NSGs. Oracle notes that both OCI network rules and the instance OS firewall must permit traffic. Never open 3939 to the public internet; the installer binds the agent to 127.0.0.1 and exposes only Caddy on ports 80/443.
 
-- The helper does not request or store a RuPay portal password.
-- It does not store full card numbers, CVV, PIN, OTP, bank login details or payment credentials.
-- It does not bypass CAPTCHA, OTP or 3-D Secure.
-- It does not automatically submit a card payment or click a final Pay, Confirm or Authorize control. Complete the Re.1 validation transaction and bank approval yourself in the visible browser.
-- The helper only reads visible page headings and button labels; it does not scrape account pages or collect payment fields.
-- Portal page structure may change. Benefit-specific navigation is not enabled until tested against the live authenticated portal.
-- Browser profile folders contain authenticated session cookies. Keep this computer account private. To remove a profile, close the companion and delete its folder under local-agent/.data/profiles/.
+## Use from iPhone
 
-RuPay's published redemption flow sends coupon details to the registered email address after a successful Re.1 validation transaction. Add received codes to the existing Vouchers inventory in the main workspace.
+1. Open https://benefits.example.com.
+2. Sign in to your existing RuPay Benefits Firebase account.
+3. Open the RuPay Select tab and add each authorized portal login email.
+4. Link the corresponding cards already recorded in your Cards workspace.
+5. Tap Open saved browser. The browser runs headlessly on Oracle and its screenshot appears in the dashboard.
+6. Tap the screenshot to click. Use the text field to type into the focused portal field; Tab, Enter, Backspace and Escape are supported.
+7. Complete portal login and any CAPTCHA/OTP manually. Review every benefit and booking detail yourself. Final Re.1 payment and bank OTP/3-D Secure authorization remain manual.
 
-## Firestore rules
+Each Firebase user and portal account has a separate browser profile under /opt/rupay-select-agent/data. Those profiles contain login cookies and must be treated as sensitive. Do not share or back up that folder to an untrusted location.
 
-This feature stores only account label, registered email, linked internal card IDs and timestamps in a separate account subcollection. It does not store portal credentials. Publish the updated root firestore.rules in Firebase Console before using the account list. See FIREBASE_SETUP.md.
+## Service management
 
-## Local-only design
+    sudo systemctl status rupay-select-agent rupay-select-caddy
+    sudo journalctl -u rupay-select-agent -f
+    sudo journalctl -u rupay-select-caddy -f
+    sudo systemctl restart rupay-select-agent rupay-select-caddy
 
-- Listens on 127.0.0.1 only; it is not exposed to the LAN or Internet.
-- Uses a random pairing code on each start.
-- Requires the pairing code for browser-control endpoints.
-- Stores browser profiles under local-agent/.data/, which is ignored by Git.
-- Does not change your live hosted website until you merge and deploy the feature branch.
+## Limits and security
+
+- The server verifies Firebase ID tokens; only the signed-in Firebase user can access their own browser profiles.
+- A same-origin HTTPS request is required for remote browser control.
+- The Playwright agent binds to host loopback only. Caddy is the only public listener.
+- Chromium runs headlessly in an unprivileged container using the upstream Playwright seccomp profile.
+- The agent does not log typed text or save passwords, CVV, PIN or OTP values to the RuPay Benefits workspace. The browser profile stores its portal session cookies.
+- Browser screenshots are returned to the authenticated dashboard on demand and are not stored by the app.
+- The current build provides remote manual browser control and page inspection. It does not yet auto-select an offer, automatically submit a payment, or read coupon email inboxes. Those require a separately tested, authorized integration.
+- The official Playwright image is intended primarily for trusted automation/testing; the browser is restricted to the authenticated user's session but still visits third-party payment pages. Keep it updated and the VM private.
