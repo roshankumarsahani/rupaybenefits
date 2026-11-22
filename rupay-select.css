@@ -41,3 +41,13 @@
 .rs-warning{color:#ffd38a;background:#3a2d18;border:1px solid #6b522b;border-radius:9px;padding:10px;font-size:10px;line-height:1.5;margin:12px 0 0}
 @media(max-width:800px){.rs-fields,.rs-inspection-grid{grid-template-columns:1fr}.rs-agent-controls{grid-template-columns:1fr}.rs-section-head{align-items:flex-start}.rs-account-card{padding:13px}.rs-actions .button{flex:1;min-width:0}.side-nav{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:380px){.rs-account-head{flex-direction:column}.rs-actions .button{font-size:9px;padding:7px}}
+/* Remote Oracle browser viewer */
+.rs-remote-screen-wrap{width:100%;overflow:auto;background:#07111f;border:1px solid #405775;border-radius:12px;margin-top:12px;touch-action:pan-y}
+.rs-remote-screen{display:block;width:100%;height:auto;cursor:crosshair;user-select:none;-webkit-user-drag:none}
+.rs-remote-type{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:12px}
+.rs-remote-type input{min-width:0;width:100%;border:1px solid #354b69;border-radius:9px;padding:10px 11px;background:#0d192b;color:#edf3ff;font-size:12px}
+.rs-key-actions{align-items:center}
+.rs-key-actions .button{flex:none}
+#rsBrowserViewer{margin-top:14px}
+#rsAgentToken{font-family:ui-monospace,monospace;letter-spacing:.06em}
+@media(max-width:800px){.rs-remote-type{grid-template-columns:1fr}.rs-key-actions .button{flex:1}.rs-remote-screen-wrap{margin-left:-2px;margin-right:-2px}}
