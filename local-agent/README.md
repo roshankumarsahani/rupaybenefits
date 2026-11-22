@@ -5,11 +5,12 @@ The Oracle deployment runs the Playwright browser on the VM and provides a signe
 ## Target
 
 - Oracle Linux 9 on Oracle Cloud Infrastructure
-- A1 Flex / Ampere ARM64 VM (the Containerfile pins the official ARM64 Playwright image)
+- Oracle Linux 9 on x86_64 (Intel/AMD) or AArch64
+- For a 1 GiB VM, the installer limits Chromium to one active portal session and caps the container memory; at least 2 GiB RAM is recommended for reliable use
 - Podman
 - A DNS hostname pointing to the VM public IP
 
-Microsoft publishes ARM64 Playwright container images; this build pins Playwright 1.65.0 so the Node package and image browser versions stay aligned. Oracle Linux 9 provides Podman through the container-tools package.
+The build uses Microsoft's version-pinned Playwright 1.65.0 Noble image so the Node package and bundled Chromium stay aligned. Oracle Linux 9 provides Podman through the container-tools package. The installer supports x86_64 and AArch64 and sets conservative memory limits for small VMs.
 
 ## Deployment prerequisites
 
@@ -28,7 +29,7 @@ SSH into Oracle Linux 9 and run:
     cd rupaybenefits
     sudo bash local-agent/deploy-oracle.sh benefits.example.com
 
-Replace benefits.example.com with the hostname you configured. The script installs Podman, builds the ARM64 browser container, creates systemd services and starts Caddy for HTTPS.
+Replace benefits.example.com with the hostname you configured. The script installs Podman, builds the browser container for the VM architecture, creates systemd services and starts Caddy for HTTPS. On a 1 GiB VM it restricts the app to one active browser and limits the container to 700 MiB RAM plus swap; heavy portal pages may still exceed this budget.
 
 Caddy requests and renews the HTTPS certificate after DNS is correct and ports 80/443 are reachable. If firewalld is active, allow HTTP and HTTPS with the commands below. Preserve existing firewall rules, especially WireGuard rules:
 
@@ -66,4 +67,5 @@ Each Firebase user and portal account has a separate browser profile under /opt/
 - The agent does not log typed text or save passwords, CVV, PIN or OTP values to the RuPay Benefits workspace. The browser profile stores its portal session cookies.
 - Browser screenshots are returned to the authenticated dashboard on demand and are not stored by the app.
 - The current build provides remote manual browser control and page inspection. It does not yet auto-select an offer, automatically submit a payment, or read coupon email inboxes. Those require a separately tested, authorized integration.
+- A 1 GiB VM is a constrained test target, not a reliable production size for Chromium. Upgrade to at least 2 GiB RAM if the browser restarts, becomes unresponsive, or the VM enters memory pressure.
 - The official Playwright image is intended primarily for trusted automation/testing; the browser is restricted to the authenticated user's session but still visits third-party payment pages. Keep it updated and the VM private.
