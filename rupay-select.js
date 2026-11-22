@@ -166,7 +166,7 @@
       '<div class="rs-remote-screen-wrap"><img class="rs-remote-screen" data-rs-screenshot data-id="' + esc(id) + '" src="data:image/jpeg;base64,' + screen.image + '" alt="Live RuPay Select browser screen" draggable="false"></div>' +
       '<p class="rs-muted">Tap the browser image to click. Text entered below is sent directly to the focused portal field and is not saved in this workspace.</p>' +
       '<form id="rsRemoteTypeForm" data-id="' + esc(id) + '" class="rs-remote-type"><input name="text" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="2000" placeholder="Type into the focused browser field" aria-label="Text to send to browser"><button class="button primary small" type="submit">Send text</button></form>' +
-      '<div class="rs-actions rs-key-actions">' + ["Tab","Enter","Backspace","Escape"].map(key => '<button class="button secondary small" type="button" data-rs-action="press-key" data-id="' + esc(id) + '" data-key="' + key + '">' + key + '</button>').join("") +
+      '<div class="rs-actions rs-key-actions">' + ["Tab","Enter","Backspace","Escape","PageDown","PageUp","ArrowDown","ArrowUp"].map(key => '<button class="button secondary small" type="button" data-rs-action="press-key" data-id="' + esc(id) + '" data-key="' + key + '">' + key + '</button>').join("") +
       '<button class="button quiet small" type="button" data-rs-action="close-browser" data-id="' + esc(id) + '">Close browser session</button></div></div>';
   }
   async function refreshBrowserScreen(id) {
