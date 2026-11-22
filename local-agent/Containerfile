@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/playwright:v1.65.0-noble-arm64
+
+WORKDIR /app
+COPY . /app
+
+WORKDIR /app/local-agent
+RUN npm install --omit=dev --no-audit --no-fund \
+  && mkdir -p /app/local-agent/.data/profiles \
+  && chown -R pwuser:pwuser /app/local-agent/.data
+
+USER pwuser
+ENV NODE_ENV=production \
+    PORT=3939 \
+    BIND_HOST=0.0.0.0 \
+    AGENT_AUTH_MODE=firebase \
+    FIREBASE_PROJECT_ID=rupay-benefits
+
+EXPOSE 3939
+CMD ["node", "server.mjs"]
