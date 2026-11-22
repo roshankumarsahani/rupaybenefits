@@ -1,0 +1,9 @@
+{
+  "name": "rupay-benefits-local-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": { "express": "^4.21.2", "playwright": "^1.56.1" }
+}
