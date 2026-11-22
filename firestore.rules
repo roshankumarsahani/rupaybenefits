@@ -1,6 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // RuPay Select account metadata. Portal credentials and payment data are never stored here.
+    match /users/{userId}/rupaySelectAccounts/{accountId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(["label", "email", "cardIds", "createdAt", "updatedAt"])
+        && request.resource.data.label is string
+        && request.resource.data.label.size() <= 80
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.cardIds is list
+        && request.resource.data.cardIds.size() <= 50;
+    }
+
     // A user can read and write only their own workspace document.
     match /users/{userId}/workspace/{documentId} {
       allow read: if request.auth != null
