@@ -23,7 +23,7 @@ const firebaseKeys = createRemoteJWKSet(new URL("https://www.googleapis.com/serv
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
-app.use(helmet({ crossOriginResourcePolicy:{ policy:"same-site" } }));
+app.use(helmet({ contentSecurityPolicy:false, crossOriginResourcePolicy:{ policy:"same-origin" } }));
 app.use(express.json({ limit:"16kb" }));
 app.use("/api/agent", rateLimit({ windowMs:60_000, limit:180, standardHeaders:"draft-7", legacyHeaders:false }));
 
@@ -37,7 +37,7 @@ function tokenMatches(value) {
 }
 function sameOrigin(req) {
   const origin = req.get("origin");
-  if (!origin) return false;
+  if (!origin) return AUTH_MODE !== "firebase";
   try { return new URL(origin).host === String(req.get("host") || "").toLowerCase(); }
   catch { return false; }
 }
@@ -127,11 +127,13 @@ app.post("/api/agent/accounts/:id/open",requireAgentAuth,async(req,res) => {
     await mkdir(profilePath(uid,id),{recursive:true});
     let item=getContext(uid,id);
     if (!item) {
+      const activeForUser=[...contexts.keys()].filter(key=>key.startsWith(uid + ":")).length;
+      if (activeForUser >= 8) return res.status(429).json({error:"This account already has eight open browser sessions. Close one first."});
       const context=await chromium.launchPersistentContext(profilePath(uid,id),{
         headless:AUTH_MODE === "firebase",
         viewport:{width:1280,height:800},
         acceptDownloads:false,
-        args:["--disable-dev-shm-usage"]
+        args:["--disable-dev-shm-usage","--disable-save-password-bubble"]
       });
       item={context,openedAt:new Date().toISOString()};
       contexts.set(profileKey(uid,id),item);
