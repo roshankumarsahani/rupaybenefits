@@ -58,3 +58,8 @@ For this release, update Firestore Rules using the current contents of `firestor
 - Firestore's single-document size limit and usage quotas still apply. This version uses one workspace document per account; export backups regularly. A future scale-up can move records into per-record subcollections.
 - Set a Google Cloud budget alert and monitor Firebase usage. Free allowances are not unlimited.
 - No Oracle VM, Docker, Node server or PostgreSQL deployment is required for the static web app.
+
+
+## RuPay Select local automation
+
+See [local-agent/README.md](local-agent/README.md) for Oracle Cloud hosting, and [RUPAY_SELECT_AUTOMATION.md](RUPAY_SELECT_AUTOMATION.md) for account data and Firestore setup. The browser runs on the Oracle VM with a separate persistent profile for each authorized portal login; the dashboard can display/control it from an iPhone over HTTPS. Portal passwords and card payment credentials are not stored in the workspace.

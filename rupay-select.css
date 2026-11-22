@@ -1,0 +1,53 @@
+.rs-notice{border:1px solid #395274;background:#14243a;color:#c7d8ee;border-radius:13px;padding:13px 15px;font-size:11px;line-height:1.65;margin:0 0 16px}
+.rs-notice strong{color:#fff}
+.rs-agent-panel{display:grid;gap:11px;margin-bottom:16px}
+.rs-agent-status{font-size:11px;color:#a9c3e4;padding:10px 12px;border-radius:10px;background:#0e1a2b;border:1px solid #304561}
+.rs-agent-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.rs-agent-controls label,.rs-fields label{display:grid;gap:6px;color:#b8c8de;font-size:10px;font-weight:700}
+.rs-agent-controls input,.rs-fields input{width:100%;border:1px solid #354b69;border-radius:9px;padding:10px 11px;background:#0d192b;color:#edf3ff;outline:none;font-size:12px;min-width:0}
+.rs-section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.rs-section-head h2{font-size:17px;margin:0}
+.rs-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rs-card-choices{display:grid;gap:7px;margin-top:9px}
+.rs-card-choice{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid #30445f;border-radius:10px;background:#0f1c2e;color:#dce8f8;font-size:10px;line-height:1.45}
+.rs-card-choice input{margin:1px 0 0;accent-color:#7eaaf4;flex:none}
+.rs-form-actions{display:flex;justify-content:flex-end;margin-top:12px}
+.rs-message{font-size:11px;line-height:1.5;color:#b7c9df;min-height:17px;margin:13px 0 0}
+.rs-message.success{color:#82d8b5}.rs-message.error{color:#ffaaaa}
+.rs-account-list{display:grid;gap:12px}
+.rs-account-card{padding:16px;border:1px solid var(--line);border-radius:15px;background:#14233a}
+.rs-account-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.rs-account-head h3{font-size:15px;margin:5px 0}
+.rs-account-head p{font-size:10px;color:var(--muted);margin:0;overflow-wrap:anywhere}
+.rs-eyebrow{font-size:8px;letter-spacing:.13em;color:#8fa8c8;font-weight:800}
+.rs-count{white-space:nowrap;border:1px solid #344c6b;background:#1b304d;padding:6px 8px;border-radius:99px;font-size:9px;color:#c5d7ed}
+.rs-linked-cards{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.rs-linked-cards span{background:#0e1b2e;border:1px solid #30445f;border-radius:8px;padding:7px 9px;font-size:9px;color:#c7d8ed}
+.rs-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.rs-edit{border-top:1px solid #30445f;margin-top:13px;padding-top:11px}
+.rs-edit summary{cursor:pointer;color:#a9c8f4;font-size:10px;font-weight:700}
+.rs-edit form{margin-top:12px}
+.rs-account-note,.rs-muted{font-size:10px;color:var(--muted);line-height:1.5;margin:10px 0 0}
+.rs-empty{padding:25px 18px;border:1px dashed #3a5274;border-radius:13px;text-align:center;color:#b9cbe2}
+.rs-empty strong{display:block;font-size:12px;color:#eaf1fb}
+.rs-empty p{font-size:10px;color:var(--muted);line-height:1.55}
+.rs-inspection-card{margin-top:14px;padding:14px;border:1px solid #334b6a;border-radius:13px;background:#0f1c2f}
+.rs-inspection-card>div:first-child strong,.rs-inspection-card>div:first-child small{display:block}
+.rs-inspection-card>div:first-child strong{font-size:12px}.rs-inspection-card>div:first-child small{color:var(--muted);font-size:9px;margin-top:4px}
+.rs-inspection-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.rs-inspection-grid section{min-width:0}
+.rs-inspection-grid b{font-size:10px;color:#d6e3f5}
+.rs-inspection-grid ul{padding-left:17px;color:#b7c9df;font-size:10px;line-height:1.6;overflow-wrap:anywhere}
+.rs-warning{color:#ffd38a;background:#3a2d18;border:1px solid #6b522b;border-radius:9px;padding:10px;font-size:10px;line-height:1.5;margin:12px 0 0}
+@media(max-width:800px){.rs-fields,.rs-inspection-grid{grid-template-columns:1fr}.rs-agent-controls{grid-template-columns:1fr}.rs-section-head{align-items:flex-start}.rs-account-card{padding:13px}.rs-actions .button{flex:1;min-width:0}.side-nav{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:380px){.rs-account-head{flex-direction:column}.rs-actions .button{font-size:9px;padding:7px}}
+/* Remote Oracle browser viewer */
+.rs-remote-screen-wrap{width:100%;overflow:auto;background:#07111f;border:1px solid #405775;border-radius:12px;margin-top:12px;touch-action:pan-y}
+.rs-remote-screen{display:block;width:100%;height:auto;cursor:crosshair;user-select:none;-webkit-user-drag:none}
+.rs-remote-type{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:12px}
+.rs-remote-type input{min-width:0;width:100%;border:1px solid #354b69;border-radius:9px;padding:10px 11px;background:#0d192b;color:#edf3ff;font-size:12px}
+.rs-key-actions{align-items:center}
+.rs-key-actions .button{flex:none}
+#rsBrowserViewer{margin-top:14px}
+#rsAgentToken{font-family:ui-monospace,monospace;letter-spacing:.06em}
+@media(max-width:800px){.rs-remote-type{grid-template-columns:1fr}.rs-key-actions .button{flex:1}.rs-remote-screen-wrap{margin-left:-2px;margin-right:-2px}}

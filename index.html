@@ -15,6 +15,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script defer src="firebase-config.js?v=4"></script>
   <script defer src="app.js?v=53"></script>
+  <link rel="stylesheet" href="rupay-select.css?v=2">
+  <script defer src="rupay-select.js?v=2"></script>
 </head>
 <body>
   <section id="authGate" class="auth-gate">
@@ -43,6 +45,7 @@
         <button class="nav-link" data-view="benefits"><span>✦</span><span class="nav-label">Benefits</span></button>
         <button class="nav-link" data-view="vouchers"><span>▣</span><span class="nav-label">Vouchers</span></button>
         <button class="nav-link mobile-settings-link" data-view="settings"><span>⚙</span><span class="nav-label">Settings</span></button>
+        <button class="nav-link" type="button" data-rupay-select-nav><span>₹</span><span class="nav-label">RuPay Select</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="storage-note"><span class="storage-dot"></span><div><strong>Firebase cloud</strong><small id="signedInEmail">Connecting workspace</small></div></div>
@@ -110,6 +113,30 @@
         </div>
       </section>
 
+      <section class="view" id="view-rupay-select">
+        <div class="page-heading"><div><p class="eyebrow">LOCAL BROWSER COMPANION</p><h1>RuPay Select Automation</h1><p class="subheading">Manage separate portal sessions and link each account to the cards in your workspace.</p></div><button class="button secondary" type="button" data-rs-action="refresh">↻ Refresh</button></div>
+        <div class="rs-notice"><strong>How this works:</strong> each registered portal email gets its own persistent browser profile on your desktop. Sign in directly in that browser. The helper does not store portal passwords, full card numbers, CVV or OTP. It will not bypass bank security or silently authorize a ₹1 payment.</div>
+        <article class="panel rs-agent-panel">
+          <div><span class="eyebrow">LOCAL COMPANION STATUS</span><h2>Connect this computer</h2></div>
+          <p id="rsAgentStatus" class="rs-agent-status">Checking local companion…</p>
+          <div class="rs-agent-controls"><label>Pairing code from the desktop terminal<input id="rsAgentToken" type="password" autocomplete="off" placeholder="Paste local pairing code"></label><button class="button primary" type="button" data-rs-action="connect-agent">Connect local companion</button></div>
+          <p class="rs-muted">The companion listens only on this computer. Open this app from http://127.0.0.1:3939 on the same desktop; a hosted website or iPhone cannot reach a computer's localhost service.</p>
+        </article>
+        <article class="panel">
+          <div class="rs-section-head"><div><span class="eyebrow">REGISTERED PORTAL LOGINS</span><h2>Add RuPay Select account</h2></div></div>
+          <form id="rsAccountForm">
+            <div class="rs-fields"><label>Account label<input name="label" required maxlength="80" placeholder="e.g. Family card account"></label><label>Registered portal email<input name="email" type="email" required maxlength="254" placeholder="email used on RuPay Select"></label></div>
+            <div class="field full" style="margin-top:14px"><label>Cards linked to this portal login</label><div id="rsNewCardChoices" class="rs-card-choices"></div></div>
+            <div class="rs-form-actions"><button class="button primary" type="submit">＋ Add account</button></div>
+          </form>
+          <p class="rs-muted">Portal passwords are never entered into this app. Add only accounts and cards you are authorized to manage.</p>
+        </article>
+        <div class="rs-section-head" style="margin-top:22px"><h2>Your RuPay Select accounts</h2><span class="muted" id="rsAccountCount"></span></div>
+        <div id="rsAccountsList" class="rs-account-list"></div>
+        <div id="rsInspection"></div>
+        <div id="rsBrowserViewer" aria-live="polite"></div>
+        <p id="rsMessage" class="rs-message" role="status" aria-live="polite"></p>
+      </section>
       <footer class="footer"><span>RuPay Benefits <span class="muted">· Personal card & benefits workspace</span></span><span>Amounts in INR (₹)</span></footer>
     </main>
   </div>
