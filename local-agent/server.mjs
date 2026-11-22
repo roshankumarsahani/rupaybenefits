@@ -41,8 +41,17 @@ function requireLocalAgent(req,res,next) {
 }
 function getContext(id) {
   const item = contexts.get(id);
-  if (!item || item.context.pages().length === 0) return null;
-  return item;
+  if (!item) return null;
+  try {
+    if (item.context.pages().length === 0) {
+      contexts.delete(id);
+      return null;
+    }
+    return item;
+  } catch {
+    contexts.delete(id);
+    return null;
+  }
 }
 function classifyPage(url,title) {
   let host = "";
@@ -64,7 +73,7 @@ async function inspectContext(id) {
     return {title:document.title || "",headings:[...new Set(headings)],buttons:[...new Set(buttons)],passwordFieldCount:document.querySelectorAll('input[type="password"]').length};
   });
   const pageInfo = classifyPage(page.url(),details.title);
-  return {title:details.title,url:page.url(),host:pageInfo.host,likelyPaymentPage:pageInfo.likelyPaymentPage,
+  return {title:details.title,host:pageInfo.host,likelyPaymentPage:pageInfo.likelyPaymentPage,
     likelyLoginPage:details.passwordFieldCount > 0,headings:details.headings,buttons:details.buttons,scannedAt:new Date().toISOString()};
 }
 
@@ -106,6 +115,13 @@ app.post("/api/agent/accounts/:id/close",requireLocalAgent,async(req,res) => {
   } catch(error) { res.status(500).json({error:"Could not close browser profile. " + String(error.message || error).slice(0,180)}); }
 });
 
+app.use((req,res,next) => {
+  const pathname = String(req.path || "").toLowerCase();
+  if (pathname.startsWith("/local-agent/node_modules/") || pathname.startsWith("/local-agent/.data/")) {
+    return res.sendStatus(404);
+  }
+  next();
+});
 app.use(express.static(ROOT,{dotfiles:"ignore",index:"index.html",fallthrough:true}));
 app.get("*",(_req,res) => res.sendFile(path.join(ROOT,"index.html")));
 
