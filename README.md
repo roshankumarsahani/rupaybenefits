@@ -62,4 +62,4 @@ For this release, update Firestore Rules using the current contents of `firestor
 
 ## RuPay Select local automation
 
-See [local-agent/README.md](local-agent/README.md) for the desktop-only companion, and [RUPAY_SELECT_AUTOMATION.md](RUPAY_SELECT_AUTOMATION.md) for the account data and Firestore setup. The feature uses a separate persistent browser profile for each authorized portal login. Portal passwords and card payment credentials are not stored.
+See [local-agent/README.md](local-agent/README.md) for Oracle Cloud hosting, and [RUPAY_SELECT_AUTOMATION.md](RUPAY_SELECT_AUTOMATION.md) for account data and Firestore setup. The browser runs on the Oracle VM with a separate persistent profile for each authorized portal login; the dashboard can display/control it from an iPhone over HTTPS. Portal passwords and card payment credentials are not stored in the workspace.
