@@ -128,7 +128,7 @@ app.post("/api/agent/accounts/:id/open",requireAgentAuth,async(req,res) => {
     let item=getContext(uid,id);
     if (!item) {
       const activeForUser=[...contexts.keys()].filter(key=>key.startsWith(uid + ":")).length;
-      if (activeForUser >= 4) return res.status(429).json({error:"This account already has four open browser sessions. Close one first."});
+      if (activeForUser >= 1) return res.status(429).json({error:"This small VM supports one active browser session at a time. Close the current session before opening another."});
       const context=await chromium.launchPersistentContext(profilePath(uid,id),{
         headless:AUTH_MODE === "firebase",
         viewport:{width:1280,height:800},
